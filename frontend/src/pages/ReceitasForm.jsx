@@ -1,0 +1,351 @@
+import { useState, useEffect } from 'react'
+import { useNavigate, useParams, Link } from 'react-router-dom'
+import { receitasAPI, ingredientesAPI } from '../api'
+
+const CATEGORIES = [
+  'prato principal',
+  'sobremesa',
+  'bebida',
+  'entrada',
+  'petisco',
+  'outro',
+]
+
+const EMPTY_FORM = {
+  name: '', description: '', category: 'prato principal',
+  sale_price: '', yield_portions: '1',
+}
+
+const fmt    = (v) => `R$ ${Number(v).toFixed(2).replace('.', ',')}`
+const fmtPct = (v) => `${Number(v).toFixed(1)}%`
+
+function cmvClass(v) {
+  if (v <= 30) return 'cmv-good'
+  if (v <= 35) return 'cmv-ok'
+  if (v <= 40) return 'cmv-warning'
+  return 'cmv-bad'
+}
+
+export default function ReceitasForm() {
+  const { id }   = useParams()
+  const navigate = useNavigate()
+  const isEdit   = Boolean(id)
+
+  const [form, setForm]                         = useState(EMPTY_FORM)
+  const [selectedIngs, setSelectedIngs]         = useState([])
+  const [availableIngs, setAvailableIngs]       = useState([])
+  const [addIngId, setAddIngId]                 = useState('')
+  const [addQty, setAddQty]                     = useState('')
+  const [loading, setLoading]                   = useState(true)
+  const [saving, setSaving]                     = useState(false)
+  const [error, setError]                       = useState('')
+
+  // ── Load available ingredients (+ recipe if editing) ──────────────
+  useEffect(() => {
+    async function init() {
+      try {
+        const { data: ings } = await ingredientesAPI.listar()
+        setAvailableIngs(ings)
+        if (ings.length > 0) setAddIngId(String(ings[0].id))
+
+        if (isEdit) {
+          const { data: recipe } = await receitasAPI.buscar(id)
+          setForm({
+            name:           recipe.name,
+            description:    recipe.description || '',
+            category:       recipe.category,
+            sale_price:     String(recipe.sale_price),
+            yield_portions: String(recipe.yield_portions),
+          })
+          setSelectedIngs(
+            recipe.ingredients.map(ri => ({
+              ingredient_id: ri.ingredient_id,
+              quantity:      ri.quantity,
+              ing:           ings.find(i => i.id === ri.ingredient_id),
+            }))
+          )
+        }
+      } catch {
+        setError('Erro ao carregar dados.')
+      } finally {
+        setLoading(false)
+      }
+    }
+    init()
+  }, [id])
+
+  const handle = (e) => setForm(prev => ({ ...prev, [e.target.name]: e.target.value }))
+
+  // ── Add ingredient to list ─────────────────────────────────────────
+  function addIngredient() {
+    const ingId = Number(addIngId)
+    const qty   = Number(addQty)
+    if (!ingId || !addQty || isNaN(qty) || qty <= 0) return
+
+    const ing = availableIngs.find(i => i.id === ingId)
+    if (!ing) return
+
+    setSelectedIngs(prev => {
+      const exists = prev.find(i => i.ingredient_id === ingId)
+      if (exists) {
+        return prev.map(i => i.ingredient_id === ingId ? { ...i, quantity: qty } : i)
+      }
+      return [...prev, { ingredient_id: ingId, quantity: qty, ing }]
+    })
+    setAddQty('')
+  }
+
+  function removeIngredient(ingId) {
+    setSelectedIngs(prev => prev.filter(i => i.ingredient_id !== ingId))
+  }
+
+  // ── Live cost calculations ─────────────────────────────────────────
+  const totalCost = selectedIngs.reduce(
+    (sum, si) => sum + (si.ing?.unit_cost ?? 0) * si.quantity,
+    0
+  )
+  const salePrice      = Number(form.sale_price) || 0
+  const portions       = Number(form.yield_portions) || 1
+  const cmvPercent     = salePrice > 0 ? (totalCost / salePrice) * 100 : 0
+  const costPerPortion = totalCost / portions
+
+  // ── Submit ─────────────────────────────────────────────────────────
+  async function submit(e) {
+    e.preventDefault()
+    setError('')
+
+    if (!form.name.trim())
+      return setError('Nome da receita é obrigatório.')
+    if (!form.sale_price || isNaN(form.sale_price) || salePrice <= 0)
+      return setError('Preço de venda deve ser maior que zero.')
+    if (selectedIngs.length === 0)
+      return setError('Adicione pelo menos um ingrediente à receita.')
+
+    const payload = {
+      name:           form.name.trim(),
+      description:    form.description.trim() || null,
+      category:       form.category,
+      sale_price:     salePrice,
+      yield_portions: portions,
+      ingredients:    selectedIngs.map(si => ({
+        ingredient_id: si.ingredient_id,
+        quantity:      si.quantity,
+      })),
+    }
+
+    try {
+      setSaving(true)
+      if (isEdit) await receitasAPI.atualizar(id, payload)
+      else        await receitasAPI.criar(payload)
+      navigate('/receitas')
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Erro ao salvar receita.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading) return <div className="loading">Carregando...</div>
+
+  return (
+    <div>
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">{isEdit ? 'Editar Receita' : 'Nova Receita'}</h1>
+        </div>
+      </div>
+
+      <div className="form-card" style={{ maxWidth: '860px' }}>
+        {error && <div className="alert alert-error">{error}</div>}
+
+        <form onSubmit={submit}>
+          {/* ── Info geral ─────────────────────────────────── */}
+          <p className="section-title">Informações Gerais</p>
+
+          <div className="form-grid" style={{ marginBottom: '1rem' }}>
+            <div className="form-group full">
+              <label htmlFor="name">Nome da Receita *</label>
+              <input
+                id="name"
+                name="name"
+                value={form.name}
+                onChange={handle}
+                placeholder="Ex: Strogonoff de frango"
+                autoFocus
+              />
+            </div>
+
+            <div className="form-group full">
+              <label htmlFor="description">Descrição</label>
+              <textarea
+                id="description"
+                name="description"
+                value={form.description}
+                onChange={handle}
+                placeholder="Descrição opcional..."
+                rows={2}
+              />
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="category">Categoria *</label>
+              <select id="category" name="category" value={form.category} onChange={handle}>
+                {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="sale_price">Preço de Venda (R$) *</label>
+              <input
+                id="sale_price"
+                name="sale_price"
+                type="number"
+                step="0.01"
+                min="0.01"
+                value={form.sale_price}
+                onChange={handle}
+                placeholder="0,00"
+              />
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="yield_portions">Rendimento (porções) *</label>
+              <input
+                id="yield_portions"
+                name="yield_portions"
+                type="number"
+                step="1"
+                min="1"
+                value={form.yield_portions}
+                onChange={handle}
+              />
+            </div>
+          </div>
+
+          {/* ── Ingredientes ───────────────────────────────── */}
+          <p className="section-title">Ingredientes da Receita</p>
+
+          {availableIngs.length === 0 ? (
+            <div className="alert alert-error">
+              Nenhum ingrediente cadastrado.{' '}
+              <Link to="/ingredientes/novo" style={{ color: 'inherit', fontWeight: 700 }}>
+                Cadastre ingredientes
+              </Link>{' '}
+              antes de criar uma receita.
+            </div>
+          ) : (
+            <>
+              {/* Seletor de adição */}
+              <div className="add-box">
+                <p className="add-box-label">Adicionar ingrediente</p>
+                <div className="add-row">
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <select value={addIngId} onChange={e => setAddIngId(e.target.value)}>
+                      {availableIngs.map(i => (
+                        <option key={i.id} value={i.id}>
+                          {i.name} ({i.unit})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <input
+                      type="number"
+                      step="0.001"
+                      min="0.001"
+                      value={addQty}
+                      onChange={e => setAddQty(e.target.value)}
+                      placeholder="Quantidade"
+                      onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addIngredient())}
+                    />
+                  </div>
+                  <button type="button" className="btn btn-secondary" onClick={addIngredient}>
+                    + Adicionar
+                  </button>
+                </div>
+              </div>
+
+              {/* Tabela de ingredientes adicionados */}
+              {selectedIngs.length > 0 && (
+                <table className="ing-table">
+                  <thead>
+                    <tr>
+                      <th>Ingrediente</th>
+                      <th>Quantidade</th>
+                      <th>Custo Unit.</th>
+                      <th>Subtotal</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedIngs.map(si => {
+                      const subtotal = (si.ing?.unit_cost ?? 0) * si.quantity
+                      return (
+                        <tr key={si.ingredient_id}>
+                          <td style={{ fontWeight: 600 }}>{si.ing?.name}</td>
+                          <td>
+                            {si.quantity} {si.ing?.unit}
+                          </td>
+                          <td>
+                            {fmt(si.ing?.unit_cost ?? 0)} / {si.ing?.unit}
+                          </td>
+                          <td style={{ fontWeight: 700 }}>{fmt(subtotal)}</td>
+                          <td>
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-danger"
+                              onClick={() => removeIngredient(si.ingredient_id)}
+                              title="Remover"
+                            >
+                              ✕
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              )}
+
+              {/* Resumo de custos */}
+              {selectedIngs.length > 0 && (
+                <div className="cost-box">
+                  <p className="cost-box-title">Resumo de Custos</p>
+                  <div className="cost-grid">
+                    <div className="cost-item">
+                      <span className="cost-label">Custo Total</span>
+                      <span className="cost-value">{fmt(totalCost)}</span>
+                    </div>
+                    <div className="cost-item">
+                      <span className="cost-label">Custo por Porção</span>
+                      <span className="cost-value">{fmt(costPerPortion)}</span>
+                    </div>
+                    <div className="cost-item">
+                      <span className="cost-label">CMV %</span>
+                      <span className={`cost-value ${salePrice > 0 ? cmvClass(cmvPercent) : ''}`}>
+                        {salePrice > 0 ? fmtPct(cmvPercent) : '—'}
+                      </span>
+                    </div>
+                  </div>
+                  <p className="cost-hint">
+                    ✅ Ideal: abaixo de 30% &nbsp;·&nbsp;
+                    🟡 Aceitável: 30–35% &nbsp;·&nbsp;
+                    🟠 Atenção: 35–40% &nbsp;·&nbsp;
+                    🔴 Alto: acima de 40%
+                  </p>
+                </div>
+              )}
+            </>
+          )}
+
+          <div className="form-actions">
+            <button type="submit" className="btn btn-primary" disabled={saving}>
+              {saving ? 'Salvando...' : isEdit ? 'Salvar Alterações' : 'Cadastrar Receita'}
+            </button>
+            <Link to="/receitas" className="btn btn-outline">Cancelar</Link>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
