@@ -1,30 +1,47 @@
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, Text
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
 from database import Base
 
 
-class Ingredient(Base):
-    __tablename__ = "ingredients"
+class User(Base):
+    __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(200), unique=True, nullable=False)
+    email = Column(String(255), unique=True, nullable=False, index=True)
+    hashed_password = Column(String(255), nullable=False)
+
+    ingredients = relationship("Ingredient", back_populates="owner", cascade="all, delete-orphan")
+    recipes = relationship("Recipe", back_populates="owner", cascade="all, delete-orphan")
+
+
+class Ingredient(Base):
+    __tablename__ = "ingredients"
+    __table_args__ = (UniqueConstraint("user_id", "name", name="uq_ingredient_user_name"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(200), nullable=False)
     unit = Column(String(20), nullable=False)
     unit_cost = Column(Float, nullable=False)
     min_stock = Column(Float, nullable=False, default=0.0)
 
+    owner = relationship("User", back_populates="ingredients")
     recipe_ingredients = relationship("RecipeIngredient", back_populates="ingredient")
 
 
 class Recipe(Base):
     __tablename__ = "recipes"
+    __table_args__ = (UniqueConstraint("user_id", "name", name="uq_recipe_user_name"),)
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(200), unique=True, nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(200), nullable=False)
     description = Column(Text, nullable=True)
     category = Column(String(100), nullable=False)
     sale_price = Column(Float, nullable=False)
     yield_portions = Column(Integer, nullable=False, default=1)
 
+    owner = relationship("User", back_populates="recipes")
     recipe_ingredients = relationship(
         "RecipeIngredient", back_populates="recipe", cascade="all, delete-orphan"
     )

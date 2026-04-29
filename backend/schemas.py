@@ -1,6 +1,25 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from typing import List, Optional
 
+
+# ── Auth ──────────────────────────────────────────────────────────────────────
+
+class UserCreate(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
+# ── Ingredients ───────────────────────────────────────────────────────────────
 
 class IngredientBase(BaseModel):
     name: str
@@ -21,6 +40,8 @@ class IngredientResponse(IngredientBase):
     id: int
     model_config = {"from_attributes": True}
 
+
+# ── Recipes ───────────────────────────────────────────────────────────────────
 
 class RecipeIngredientInput(BaseModel):
     ingredient_id: int
