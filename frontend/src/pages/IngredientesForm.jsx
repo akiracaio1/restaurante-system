@@ -17,6 +17,12 @@ function calcYieldTotal(stages, yieldPct) {
   return parseFloat(yieldPct) || 100
 }
 
+function yieldColor(pct) {
+  if (pct >= 90) return '#1a7f46'
+  if (pct >= 70) return 'var(--orange)'
+  return '#c0392b'
+}
+
 export default function IngredientesForm() {
   const { id }    = useParams()
   const navigate  = useNavigate()
@@ -49,7 +55,6 @@ export default function IngredientesForm() {
       .finally(() => setLoading(false))
   }, [id])
 
-  // Auto-calculate unit_cost when purchase fields change
   useEffect(() => {
     const qty  = parseFloat(form.purchase_quantity)
     const cost = parseFloat(form.purchase_cost)
@@ -61,8 +66,8 @@ export default function IngredientesForm() {
   const handle = (e) => setForm(prev => ({ ...prev, [e.target.name]: e.target.value }))
 
   function addStage() {
-    const name  = newStage.name.trim()
-    const yPct  = parseFloat(newStage.yield_percentage)
+    const name = newStage.name.trim()
+    const yPct = parseFloat(newStage.yield_percentage)
     if (!name || isNaN(yPct) || yPct <= 0 || yPct > 100) return
     setStages(prev => [...prev, { name, yield_percentage: yPct }])
     setNewStage({ name: '', yield_percentage: '' })
@@ -72,8 +77,8 @@ export default function IngredientesForm() {
     setStages(prev => prev.filter((_, i) => i !== idx))
   }
 
-  const yieldTotal = calcYieldTotal(stages, form.yield_percentage)
-  const realUnitCost =
+  const yieldTotal    = calcYieldTotal(stages, form.yield_percentage)
+  const realUnitCost  =
     form.unit_cost !== '' && yieldTotal > 0
       ? parseFloat(form.unit_cost) / (yieldTotal / 100)
       : null
@@ -88,7 +93,7 @@ export default function IngredientesForm() {
     if (form.min_stock === '' || isNaN(form.min_stock)) return setError('Estoque mínimo inválido.')
 
     const yPct = parseFloat(form.yield_percentage)
-    if (isNaN(yPct) || yPct <= 0 || yPct > 100) return setError('Percentual de aproveitamento deve ser entre 1 e 100.')
+    if (isNaN(yPct) || yPct <= 0 || yPct > 100) return setError('Aproveitamento deve ser entre 1 e 100.')
 
     const hasPurchase = form.purchase_quantity || form.purchase_cost || form.purchase_unit
     if (hasPurchase && (!form.purchase_unit.trim() || !form.purchase_quantity || !form.purchase_cost)) {
@@ -119,7 +124,7 @@ export default function IngredientesForm() {
     }
   }
 
-  if (loading) return <div className="loading">Carregando...</div>
+  if (loading) return <div className="loading">Carregando…</div>
 
   const hasPurchase = form.purchase_unit || form.purchase_quantity || form.purchase_cost
 
@@ -128,7 +133,11 @@ export default function IngredientesForm() {
       <div className="page-header">
         <div>
           <h1 className="page-title">{isEdit ? 'Editar Ingrediente' : 'Novo Ingrediente'}</h1>
+          <p className="page-subtitle">
+            {isEdit ? 'Atualize as informações do ingrediente' : 'Preencha os dados do novo ingrediente'}
+          </p>
         </div>
+        <Link to="/ingredientes" className="btn btn-ghost">← Voltar</Link>
       </div>
 
       <div className="form-card">
@@ -147,6 +156,7 @@ export default function IngredientesForm() {
                 onChange={handle}
                 placeholder="Ex: Farinha de trigo"
                 autoFocus
+                className={form.name.trim() ? 'valid' : ''}
               />
             </div>
 
@@ -217,7 +227,11 @@ export default function IngredientesForm() {
             <div className="form-group">
               <label htmlFor="unit_cost">
                 Custo por {form.unit} (R$) *
-                {hasPurchase && <span style={{ color: 'var(--color-primary)', fontSize: '0.75rem', marginLeft: '0.5rem' }}>calculado</span>}
+                {hasPurchase && (
+                  <span style={{ color: 'var(--orange)', fontSize: '.73rem', marginLeft: '.4rem', fontWeight: 700 }}>
+                    auto-calculado
+                  </span>
+                )}
               </label>
               <input
                 id="unit_cost"
@@ -228,13 +242,25 @@ export default function IngredientesForm() {
                 value={form.unit_cost}
                 onChange={handle}
                 placeholder="0,00"
+                className={form.unit_cost && !isNaN(form.unit_cost) ? 'valid' : ''}
               />
             </div>
           </div>
+
           {hasPurchase && form.purchase_unit && form.purchase_quantity && form.purchase_cost && (
-            <p style={{ fontSize: '0.8rem', color: 'var(--color-muted)', marginBottom: '1.5rem' }}>
-              1 {form.purchase_unit} = {form.purchase_quantity} {form.unit} → R$ {Number(form.unit_cost || 0).toFixed(4)} / {form.unit}
-            </p>
+            <div style={{
+              background: 'var(--green-pale)',
+              border: '1px solid #b5ddc8',
+              borderRadius: 'var(--radius-sm)',
+              padding: '.6rem 1rem',
+              fontSize: '.82rem',
+              color: 'var(--green-mid)',
+              fontWeight: 600,
+              marginBottom: '1.5rem',
+            }}>
+              💡 1 {form.purchase_unit} = {form.purchase_quantity} {form.unit} →{' '}
+              R$ {Number(form.unit_cost || 0).toFixed(4)} / {form.unit}
+            </div>
           )}
 
           {/* ── Fator de redução ────────────────────────── */}
@@ -243,7 +269,11 @@ export default function IngredientesForm() {
             <div className="form-group">
               <label htmlFor="yield_percentage">
                 Aproveitamento simples (%)
-                {stages.length > 0 && <span style={{ color: 'var(--color-muted)', fontSize: '0.75rem', marginLeft: '0.5rem' }}>ignorado quando há etapas</span>}
+                {stages.length > 0 && (
+                  <span style={{ color: 'var(--muted)', fontSize: '.72rem', marginLeft: '.4rem' }}>
+                    ignorado — usando etapas
+                  </span>
+                )}
               </label>
               <input
                 id="yield_percentage"
@@ -259,11 +289,30 @@ export default function IngredientesForm() {
             </div>
 
             <div className="form-group" style={{ display: 'flex', alignItems: 'flex-end' }}>
-              <div style={{ background: 'var(--color-bg)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '0.6rem 1rem', width: '100%' }}>
-                <span style={{ fontSize: '0.75rem', color: 'var(--color-muted)', display: 'block' }}>Aproveitamento total</span>
-                <span style={{ fontWeight: 700, fontSize: '1.1rem' }}>{yieldTotal.toFixed(1)}%</span>
+              <div style={{
+                background: '#F7F9FC',
+                border: '1.5px solid var(--border)',
+                borderRadius: 'var(--radius-sm)',
+                padding: '.7rem 1rem',
+                width: '100%',
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '.4rem' }}>
+                  <span style={{ fontSize: '.75rem', color: 'var(--muted)', fontWeight: 600 }}>Aproveitamento total</span>
+                  <span style={{ fontWeight: 800, fontSize: '1.1rem', color: yieldColor(yieldTotal) }}>
+                    {yieldTotal.toFixed(1)}%
+                  </span>
+                </div>
+                <div style={{ background: '#E2E8F0', borderRadius: 99, height: 6, overflow: 'hidden' }}>
+                  <div style={{
+                    height: '100%',
+                    borderRadius: 99,
+                    width: `${Math.min(yieldTotal, 100)}%`,
+                    background: yieldColor(yieldTotal),
+                    transition: 'width .3s ease',
+                  }} />
+                </div>
                 {realUnitCost != null && (
-                  <span style={{ fontSize: '0.8rem', color: 'var(--color-primary)', display: 'block' }}>
+                  <span style={{ fontSize: '.8rem', color: 'var(--orange)', display: 'block', marginTop: '.4rem', fontWeight: 700 }}>
                     Custo real: R$ {realUnitCost.toFixed(4)} / {form.unit}
                   </span>
                 )}
@@ -271,16 +320,15 @@ export default function IngredientesForm() {
             </div>
           </div>
 
-          {/* Etapas de redução */}
           {stages.length > 0 && (
-            <div style={{ marginBottom: '1rem' }}>
+            <div style={{ marginBottom: '1rem', display: 'flex', flexDirection: 'column', gap: '.4rem' }}>
               {stages.map((s, i) => (
-                <div key={i} style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', marginBottom: '0.5rem' }}>
-                  {i > 0 && <span style={{ color: 'var(--color-muted)' }}>→</span>}
-                  {i === 0 && <span style={{ color: 'var(--color-muted)', minWidth: '1rem' }}></span>}
-                  <span style={{ fontWeight: 600 }}>{s.name}</span>
+                <div key={i} style={{ display: 'flex', gap: '.6rem', alignItems: 'center' }}>
+                  {i > 0 && <span style={{ color: 'var(--muted)', fontSize: '.85rem' }}>→</span>}
+                  {i === 0 && <span style={{ minWidth: '1rem' }} />}
+                  <span style={{ fontWeight: 700, fontSize: '.88rem' }}>{s.name}</span>
                   <span className="badge badge-unit">{s.yield_percentage}%</span>
-                  <button type="button" className="btn btn-sm btn-danger" onClick={() => removeStage(i)}>✕</button>
+                  <button type="button" className="btn btn-sm btn-danger btn-icon-only" onClick={() => removeStage(i)}>✕</button>
                 </div>
               ))}
             </div>
@@ -291,7 +339,7 @@ export default function IngredientesForm() {
               <input
                 value={newStage.name}
                 onChange={e => setNewStage(p => ({ ...p, name: e.target.value }))}
-                placeholder={stages.length === 0 ? 'Ex: bruto → limpo' : 'Próxima etapa (ex: limpo → grelhado)'}
+                placeholder={stages.length === 0 ? 'Nome da etapa (ex: bruto → limpo)' : 'Próxima etapa (ex: limpo → grelhado)'}
               />
             </div>
             <div className="form-group" style={{ margin: 0, flex: 1 }}>
@@ -302,7 +350,7 @@ export default function IngredientesForm() {
                 max="100"
                 value={newStage.yield_percentage}
                 onChange={e => setNewStage(p => ({ ...p, yield_percentage: e.target.value }))}
-                placeholder="Aproveitamento %"
+                placeholder="% aproveitamento"
                 onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addStage())}
               />
             </div>
@@ -313,9 +361,9 @@ export default function IngredientesForm() {
 
           <div className="form-actions">
             <button type="submit" className="btn btn-primary" disabled={saving}>
-              {saving ? 'Salvando...' : isEdit ? 'Salvar Alterações' : 'Cadastrar Ingrediente'}
+              {saving ? '⏳ Salvando…' : isEdit ? '✓ Salvar Alterações' : '✓ Cadastrar Ingrediente'}
             </button>
-            <Link to="/ingredientes" className="btn btn-outline">Cancelar</Link>
+            <Link to="/ingredientes" className="btn btn-ghost">Cancelar</Link>
           </div>
         </form>
       </div>

@@ -1,15 +1,28 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { ingredientesAPI } from '../api'
 
-const fmt = (v, decimals = 2) =>
-  `R$ ${Number(v).toFixed(decimals).replace('.', ',')}`
+const fmt = (v, d = 2) => `R$ ${Number(v).toFixed(d).replace('.', ',')}`
+
+function yieldClass(pct) {
+  if (pct >= 90) return 'good'
+  if (pct >= 70) return 'ok'
+  return 'bad'
+}
+
+function calcYieldTotal(item) {
+  if (item.reduction_stages && item.reduction_stages.length > 0) {
+    return item.reduction_stages.reduce((a, s) => a * s.yield_percentage / 100, 1) * 100
+  }
+  return item.yield_percentage ?? 100
+}
 
 export default function IngredientesLista() {
   const [items, setItems]     = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError]     = useState('')
   const [success, setSuccess] = useState('')
+  const [search, setSearch]   = useState('')
 
   async function load() {
     try {
@@ -38,11 +51,16 @@ export default function IngredientesLista() {
     }
   }
 
+  const filtered = useMemo(() =>
+    items.filter(i => i.name.toLowerCase().includes(search.toLowerCase())),
+    [items, search]
+  )
+
   return (
     <div>
       <div className="page-header">
         <div>
-          <h1 className="page-title">Ingredientes</h1>
+          <h1 className="page-title">🥬 Ingredientes</h1>
           <p className="page-subtitle">
             {items.length} ingrediente{items.length !== 1 ? 's' : ''} cadastrado{items.length !== 1 ? 's' : ''}
           </p>
@@ -53,77 +71,114 @@ export default function IngredientesLista() {
       {error   && <div className="alert alert-error">{error}</div>}
       {success && <div className="alert alert-success">{success}</div>}
 
-      <div className="card">
-        {loading ? (
-          <div className="loading">Carregando...</div>
-        ) : items.length === 0 ? (
+      {!loading && items.length > 0 && (
+        <div className="toolbar">
+          <div className="search-wrapper">
+            <span className="search-icon">🔍</span>
+            <input
+              className="search-input"
+              type="search"
+              placeholder="Buscar ingrediente..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+          </div>
+          {search && (
+            <span style={{ fontSize: '.84rem', color: 'var(--muted)', whiteSpace: 'nowrap' }}>
+              {filtered.length} resultado{filtered.length !== 1 ? 's' : ''}
+            </span>
+          )}
+        </div>
+      )}
+
+      {loading ? (
+        <div className="loading">Carregando ingredientes…</div>
+      ) : items.length === 0 ? (
+        <div className="card">
           <div className="empty-state">
-            <div className="empty-icon">🥦</div>
+            <span className="empty-icon">🥦</span>
             <p className="empty-text">Nenhum ingrediente cadastrado</p>
-            <p className="empty-sub">Clique em "Novo Ingrediente" para começar.</p>
+            <p className="empty-sub">
+              <Link to="/ingredientes/novo" style={{ color: 'var(--orange)', fontWeight: 700 }}>
+                Cadastre seu primeiro ingrediente
+              </Link>
+            </p>
           </div>
-        ) : (
-          <div className="table-wrapper">
-            <table>
-              <thead>
-                <tr>
-                  <th>Nome</th>
-                  <th>Unidade</th>
-                  <th>Custo Unitário</th>
-                  <th>Custo Real</th>
-                  <th>Aproveit.</th>
-                  <th>Estoque Mínimo</th>
-                  <th style={{ textAlign: 'right' }}>Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map(item => {
-                  const hasReduction = (item.yield_percentage ?? 100) < 100 || (item.reduction_stages && item.reduction_stages.length > 0)
-                  return (
-                  <tr key={item.id}>
-                    <td style={{ fontWeight: 600 }}>{item.name}</td>
-                    <td>
-                      <span className="badge badge-unit">{item.unit}</span>
-                    </td>
-                    <td>{fmt(item.unit_cost, 4)} / {item.unit}</td>
-                    <td style={{ fontWeight: hasReduction ? 700 : 400, color: hasReduction ? 'var(--color-primary)' : undefined }}>
-                      {fmt(item.real_unit_cost, 4)} / {item.unit}
-                    </td>
-                    <td>
-                      {item.reduction_stages && item.reduction_stages.length > 0
-                        ? <span title={item.reduction_stages.map(s => `${s.name}: ${s.yield_percentage}%`).join(' → ')}>
-                            {(item.reduction_stages.reduce((a, s) => a * s.yield_percentage / 100, 1) * 100).toFixed(1)}% ⛓
-                          </span>
-                        : <span>{(item.yield_percentage ?? 100).toFixed(0)}%</span>
-                      }
-                    </td>
-                    <td>
-                      {item.min_stock} {item.unit}
-                    </td>
-                    <td>
-                      <div className="td-actions" style={{ justifyContent: 'flex-end' }}>
-                        <Link
-                          to={`/ingredientes/${item.id}/editar`}
-                          className="btn btn-sm btn-outline"
-                        >
-                          Editar
-                        </Link>
-                        <button
-                          className="btn btn-sm btn-danger"
-                          onClick={() => handleDelete(item.id, item.name)}
-                        >
-                          Excluir
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="card">
+          <div className="empty-state">
+            <span className="empty-icon">🔍</span>
+            <p className="empty-text">Nenhum resultado para "{search}"</p>
+            <p className="empty-sub">Tente outro termo de busca.</p>
           </div>
-        )}
-      </div>
+        </div>
+      ) : (
+        <div className="cards-grid">
+          {filtered.map(item => {
+            const yieldTotal   = calcYieldTotal(item)
+            const hasReduction = yieldTotal < 99.9
+            const cls          = yieldClass(yieldTotal)
+            const isCalc       = hasReduction && item.real_unit_cost != null
+
+            return (
+              <div key={item.id} className="ing-card">
+                <div className="ing-card-header">
+                  <span className="ing-card-name">{item.name}</span>
+                  <span className="badge badge-unit">{item.unit}</span>
+                </div>
+
+                <div className="ing-card-body">
+                  <div className="ing-card-row">
+                    <span className="ing-card-label">Custo unitário</span>
+                    <span className="ing-card-value">{fmt(item.unit_cost, 4)}/{item.unit}</span>
+                  </div>
+
+                  {isCalc && (
+                    <div className="ing-card-row">
+                      <span className="ing-card-label">Custo real</span>
+                      <span className="ing-card-value highlight">{fmt(item.real_unit_cost, 4)}/{item.unit}</span>
+                    </div>
+                  )}
+
+                  <div className="ing-card-row">
+                    <span className="ing-card-label">Estoque mín.</span>
+                    <span className="ing-card-value">{item.min_stock} {item.unit}</span>
+                  </div>
+
+                  <div className="ing-card-yield">
+                    <div className="yield-label-row">
+                      <span className="yield-label-text">
+                        Aproveitamento
+                        {item.reduction_stages?.length > 0 && ' (multi-etapa)'}
+                      </span>
+                      <span className={`yield-pct ${cls}`}>{yieldTotal.toFixed(1)}%</span>
+                    </div>
+                    <div className="yield-track">
+                      <div
+                        className={`yield-fill ${cls}`}
+                        style={{ width: `${Math.min(yieldTotal, 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="ing-card-actions">
+                  <Link to={`/ingredientes/${item.id}/editar`} className="btn btn-sm btn-outline">
+                    Editar
+                  </Link>
+                  <button
+                    className="btn btn-sm btn-danger"
+                    onClick={() => handleDelete(item.id, item.name)}
+                  >
+                    Excluir
+                  </button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }

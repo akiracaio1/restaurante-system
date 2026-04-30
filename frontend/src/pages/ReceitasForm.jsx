@@ -26,21 +26,27 @@ function cmvClass(v) {
   return 'cmv-bad'
 }
 
+function cmvLabel(v) {
+  if (v <= 30) return '🟢 Excelente'
+  if (v <= 35) return '🟡 Aceitável'
+  if (v <= 40) return '🟠 Atenção'
+  return '🔴 Alto — revise'
+}
+
 export default function ReceitasForm() {
   const { id }   = useParams()
   const navigate = useNavigate()
   const isEdit   = Boolean(id)
 
-  const [form, setForm]                         = useState(EMPTY_FORM)
-  const [selectedIngs, setSelectedIngs]         = useState([])
-  const [availableIngs, setAvailableIngs]       = useState([])
-  const [addIngId, setAddIngId]                 = useState('')
-  const [addQty, setAddQty]                     = useState('')
-  const [loading, setLoading]                   = useState(true)
-  const [saving, setSaving]                     = useState(false)
-  const [error, setError]                       = useState('')
+  const [form, setForm]               = useState(EMPTY_FORM)
+  const [selectedIngs, setSelectedIngs] = useState([])
+  const [availableIngs, setAvailableIngs] = useState([])
+  const [addIngId, setAddIngId]       = useState('')
+  const [addQty, setAddQty]           = useState('')
+  const [loading, setLoading]         = useState(true)
+  const [saving, setSaving]           = useState(false)
+  const [error, setError]             = useState('')
 
-  // ── Load available ingredients (+ recipe if editing) ──────────────
   useEffect(() => {
     async function init() {
       try {
@@ -76,20 +82,15 @@ export default function ReceitasForm() {
 
   const handle = (e) => setForm(prev => ({ ...prev, [e.target.name]: e.target.value }))
 
-  // ── Add ingredient to list ─────────────────────────────────────────
   function addIngredient() {
     const ingId = Number(addIngId)
     const qty   = Number(addQty)
     if (!ingId || !addQty || isNaN(qty) || qty <= 0) return
-
     const ing = availableIngs.find(i => i.id === ingId)
     if (!ing) return
-
     setSelectedIngs(prev => {
       const exists = prev.find(i => i.ingredient_id === ingId)
-      if (exists) {
-        return prev.map(i => i.ingredient_id === ingId ? { ...i, quantity: qty } : i)
-      }
+      if (exists) return prev.map(i => i.ingredient_id === ingId ? { ...i, quantity: qty } : i)
       return [...prev, { ingredient_id: ingId, quantity: qty, ing }]
     })
     setAddQty('')
@@ -99,21 +100,17 @@ export default function ReceitasForm() {
     setSelectedIngs(prev => prev.filter(i => i.ingredient_id !== ingId))
   }
 
-  // ── Live cost calculations ─────────────────────────────────────────
-  const totalCost = selectedIngs.reduce(
-    (sum, si) => sum + (si.ing?.real_unit_cost ?? si.ing?.unit_cost ?? 0) * si.quantity,
-    0
+  const totalCost      = selectedIngs.reduce(
+    (sum, si) => sum + (si.ing?.real_unit_cost ?? si.ing?.unit_cost ?? 0) * si.quantity, 0
   )
   const salePrice      = Number(form.sale_price) || 0
   const portions       = Number(form.yield_portions) || 1
   const cmvPercent     = salePrice > 0 ? (totalCost / salePrice) * 100 : 0
   const costPerPortion = totalCost / portions
 
-  // ── Submit ─────────────────────────────────────────────────────────
   async function submit(e) {
     e.preventDefault()
     setError('')
-
     if (!form.name.trim())
       return setError('Nome da receita é obrigatório.')
     if (!form.sale_price || isNaN(form.sale_price) || salePrice <= 0)
@@ -145,14 +142,18 @@ export default function ReceitasForm() {
     }
   }
 
-  if (loading) return <div className="loading">Carregando...</div>
+  if (loading) return <div className="loading">Carregando…</div>
 
   return (
     <div>
       <div className="page-header">
         <div>
           <h1 className="page-title">{isEdit ? 'Editar Receita' : 'Nova Receita'}</h1>
+          <p className="page-subtitle">
+            {isEdit ? 'Atualize as informações da receita' : 'Preencha os dados da nova receita'}
+          </p>
         </div>
+        <Link to="/receitas" className="btn btn-ghost">← Voltar</Link>
       </div>
 
       <div className="form-card" style={{ maxWidth: '860px' }}>
@@ -172,6 +173,7 @@ export default function ReceitasForm() {
                 onChange={handle}
                 placeholder="Ex: Strogonoff de frango"
                 autoFocus
+                className={form.name.trim() ? 'valid' : ''}
               />
             </div>
 
@@ -182,7 +184,7 @@ export default function ReceitasForm() {
                 name="description"
                 value={form.description}
                 onChange={handle}
-                placeholder="Descrição opcional..."
+                placeholder="Descrição opcional da receita..."
                 rows={2}
               />
             </div>
@@ -205,6 +207,7 @@ export default function ReceitasForm() {
                 value={form.sale_price}
                 onChange={handle}
                 placeholder="0,00"
+                className={salePrice > 0 ? 'valid' : ''}
               />
             </div>
 
@@ -235,7 +238,6 @@ export default function ReceitasForm() {
             </div>
           ) : (
             <>
-              {/* Seletor de adição */}
               <div className="add-box">
                 <p className="add-box-label">Adicionar ingrediente</p>
                 <div className="add-row">
@@ -265,7 +267,6 @@ export default function ReceitasForm() {
                 </div>
               </div>
 
-              {/* Tabela de ingredientes adicionados */}
               {selectedIngs.length > 0 && (
                 <table className="ing-table">
                   <thead>
@@ -284,19 +285,14 @@ export default function ReceitasForm() {
                       return (
                         <tr key={si.ingredient_id}>
                           <td style={{ fontWeight: 600 }}>{si.ing?.name}</td>
-                          <td>
-                            {si.quantity} {si.ing?.unit}
-                          </td>
-                          <td>
-                            {fmt(realCost)} / {si.ing?.unit}
-                          </td>
+                          <td>{si.quantity} {si.ing?.unit}</td>
+                          <td>{fmt(realCost)} / {si.ing?.unit}</td>
                           <td style={{ fontWeight: 700 }}>{fmt(subtotal)}</td>
                           <td>
                             <button
                               type="button"
-                              className="btn btn-sm btn-danger"
+                              className="btn btn-sm btn-danger btn-icon-only"
                               onClick={() => removeIngredient(si.ingredient_id)}
-                              title="Remover"
                             >
                               ✕
                             </button>
@@ -308,7 +304,6 @@ export default function ReceitasForm() {
                 </table>
               )}
 
-              {/* Resumo de custos */}
               {selectedIngs.length > 0 && (
                 <div className="cost-box">
                   <p className="cost-box-title">Resumo de Custos</p>
@@ -328,11 +323,20 @@ export default function ReceitasForm() {
                       </span>
                     </div>
                   </div>
+                  {salePrice > 0 && (
+                    <div style={{
+                      marginTop: '.85rem',
+                      padding: '.5rem .75rem',
+                      background: 'rgba(0,0,0,.04)',
+                      borderRadius: 'var(--radius-sm)',
+                      fontSize: '.82rem',
+                      fontWeight: 700,
+                    }}>
+                      {cmvLabel(cmvPercent)}
+                    </div>
+                  )}
                   <p className="cost-hint">
-                    ✅ Ideal: abaixo de 30% &nbsp;·&nbsp;
-                    🟡 Aceitável: 30–35% &nbsp;·&nbsp;
-                    🟠 Atenção: 35–40% &nbsp;·&nbsp;
-                    🔴 Alto: acima de 40%
+                    Referência: &lt;30% excelente · 30–35% aceitável · 35–40% atenção · &gt;40% alto
                   </p>
                 </div>
               )}
@@ -341,9 +345,9 @@ export default function ReceitasForm() {
 
           <div className="form-actions">
             <button type="submit" className="btn btn-primary" disabled={saving}>
-              {saving ? 'Salvando...' : isEdit ? 'Salvar Alterações' : 'Cadastrar Receita'}
+              {saving ? '⏳ Salvando…' : isEdit ? '✓ Salvar Alterações' : '✓ Cadastrar Receita'}
             </button>
-            <Link to="/receitas" className="btn btn-outline">Cancelar</Link>
+            <Link to="/receitas" className="btn btn-ghost">Cancelar</Link>
           </div>
         </form>
       </div>
