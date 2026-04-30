@@ -16,7 +16,8 @@ def build_response(recipe: models.Recipe) -> schemas.RecipeResponse:
     total_cost = 0.0
     ingredients_resp = []
     for ri in recipe.recipe_ingredients:
-        subtotal = ri.ingredient.unit_cost * ri.quantity
+        real_cost = ri.ingredient.real_unit_cost
+        subtotal = real_cost * ri.quantity
         total_cost += subtotal
         ingredients_resp.append(
             schemas.RecipeIngredientResponse(
@@ -24,7 +25,7 @@ def build_response(recipe: models.Recipe) -> schemas.RecipeResponse:
                 ingredient_id=ri.ingredient_id,
                 ingredient_name=ri.ingredient.name,
                 ingredient_unit=ri.ingredient.unit,
-                ingredient_unit_cost=ri.ingredient.unit_cost,
+                ingredient_unit_cost=real_cost,
                 quantity=ri.quantity,
                 subtotal=round(subtotal, 4),
             )

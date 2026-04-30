@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, Text, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, Text, UniqueConstraint, JSON
 from sqlalchemy.orm import relationship
 from database import Base
 
@@ -25,8 +25,32 @@ class Ingredient(Base):
     unit_cost = Column(Float, nullable=False)
     min_stock = Column(Float, nullable=False, default=0.0)
 
+    purchase_unit = Column(String(50), nullable=True)
+    purchase_quantity = Column(Float, nullable=True)
+    purchase_cost = Column(Float, nullable=True)
+    yield_percentage = Column(Float, nullable=False, default=100.0)
+    reduction_stages = Column(JSON, nullable=True)
+
     owner = relationship("User", back_populates="ingredients")
     recipe_ingredients = relationship("RecipeIngredient", back_populates="ingredient")
+
+    @property
+    def yield_total(self) -> float:
+        stages = self.reduction_stages
+        if stages:
+            result = 1.0
+            for stage in stages:
+                result *= stage.get("yield_percentage", 100) / 100.0
+            return result * 100.0
+        yt = self.yield_percentage
+        return yt if yt is not None else 100.0
+
+    @property
+    def real_unit_cost(self) -> float:
+        yt = self.yield_total
+        if yt > 0:
+            return self.unit_cost / (yt / 100.0)
+        return self.unit_cost
 
 
 class Recipe(Base):

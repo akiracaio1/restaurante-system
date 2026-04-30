@@ -101,7 +101,7 @@ export default function ReceitasForm() {
 
   // ── Live cost calculations ─────────────────────────────────────────
   const totalCost = selectedIngs.reduce(
-    (sum, si) => sum + (si.ing?.unit_cost ?? 0) * si.quantity,
+    (sum, si) => sum + (si.ing?.real_unit_cost ?? si.ing?.unit_cost ?? 0) * si.quantity,
     0
   )
   const salePrice      = Number(form.sale_price) || 0
@@ -279,7 +279,8 @@ export default function ReceitasForm() {
                   </thead>
                   <tbody>
                     {selectedIngs.map(si => {
-                      const subtotal = (si.ing?.unit_cost ?? 0) * si.quantity
+                      const realCost = si.ing?.real_unit_cost ?? si.ing?.unit_cost ?? 0
+                      const subtotal = realCost * si.quantity
                       return (
                         <tr key={si.ingredient_id}>
                           <td style={{ fontWeight: 600 }}>{si.ing?.name}</td>
@@ -287,7 +288,7 @@ export default function ReceitasForm() {
                             {si.quantity} {si.ing?.unit}
                           </td>
                           <td>
-                            {fmt(si.ing?.unit_cost ?? 0)} / {si.ing?.unit}
+                            {fmt(realCost)} / {si.ing?.unit}
                           </td>
                           <td style={{ fontWeight: 700 }}>{fmt(subtotal)}</td>
                           <td>

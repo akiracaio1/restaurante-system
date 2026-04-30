@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { ingredientesAPI } from '../api'
 
-const fmt = (v, unit) =>
-  `R$ ${Number(v).toFixed(2).replace('.', ',')} / ${unit}`
+const fmt = (v, decimals = 2) =>
+  `R$ ${Number(v).toFixed(decimals).replace('.', ',')}`
 
 export default function IngredientesLista() {
   const [items, setItems]     = useState([])
@@ -70,18 +70,33 @@ export default function IngredientesLista() {
                   <th>Nome</th>
                   <th>Unidade</th>
                   <th>Custo Unitário</th>
+                  <th>Custo Real</th>
+                  <th>Aproveit.</th>
                   <th>Estoque Mínimo</th>
                   <th style={{ textAlign: 'right' }}>Ações</th>
                 </tr>
               </thead>
               <tbody>
-                {items.map(item => (
+                {items.map(item => {
+                  const hasReduction = (item.yield_percentage ?? 100) < 100 || (item.reduction_stages && item.reduction_stages.length > 0)
+                  return (
                   <tr key={item.id}>
                     <td style={{ fontWeight: 600 }}>{item.name}</td>
                     <td>
                       <span className="badge badge-unit">{item.unit}</span>
                     </td>
-                    <td>{fmt(item.unit_cost, item.unit)}</td>
+                    <td>{fmt(item.unit_cost, 4)} / {item.unit}</td>
+                    <td style={{ fontWeight: hasReduction ? 700 : 400, color: hasReduction ? 'var(--color-primary)' : undefined }}>
+                      {fmt(item.real_unit_cost, 4)} / {item.unit}
+                    </td>
+                    <td>
+                      {item.reduction_stages && item.reduction_stages.length > 0
+                        ? <span title={item.reduction_stages.map(s => `${s.name}: ${s.yield_percentage}%`).join(' → ')}>
+                            {(item.reduction_stages.reduce((a, s) => a * s.yield_percentage / 100, 1) * 100).toFixed(1)}% ⛓
+                          </span>
+                        : <span>{(item.yield_percentage ?? 100).toFixed(0)}%</span>
+                      }
+                    </td>
                     <td>
                       {item.min_stock} {item.unit}
                     </td>
@@ -102,7 +117,8 @@ export default function IngredientesLista() {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
             </table>
           </div>

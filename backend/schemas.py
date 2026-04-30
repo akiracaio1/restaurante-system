@@ -21,11 +21,21 @@ class TokenResponse(BaseModel):
 
 # ── Ingredients ───────────────────────────────────────────────────────────────
 
+class ReductionStage(BaseModel):
+    name: str
+    yield_percentage: float
+
+
 class IngredientBase(BaseModel):
     name: str
     unit: str
     unit_cost: float
     min_stock: float = 0.0
+    purchase_unit: Optional[str] = None
+    purchase_quantity: Optional[float] = None
+    purchase_cost: Optional[float] = None
+    yield_percentage: float = 100.0
+    reduction_stages: Optional[List[ReductionStage]] = None
 
 
 class IngredientCreate(IngredientBase):
@@ -38,6 +48,7 @@ class IngredientUpdate(IngredientBase):
 
 class IngredientResponse(IngredientBase):
     id: int
+    real_unit_cost: float
     model_config = {"from_attributes": True}
 
 

@@ -1,17 +1,31 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 
 from database import engine, Base
 from routers import ingredients, recipes
 from routers import auth as auth_router
 import models  # noqa: F401 — registers all models before create_all
 
+_NEW_INGREDIENT_COLS = [
+    "ALTER TABLE ingredients ADD COLUMN purchase_unit VARCHAR(50)",
+    "ALTER TABLE ingredients ADD COLUMN purchase_quantity FLOAT",
+    "ALTER TABLE ingredients ADD COLUMN purchase_cost FLOAT",
+    "ALTER TABLE ingredients ADD COLUMN yield_percentage FLOAT DEFAULT 100.0",
+    "ALTER TABLE ingredients ADD COLUMN reduction_stages TEXT",
+]
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        for stmt in _NEW_INGREDIENT_COLS:
+            try:
+                await conn.execute(text(stmt))
+            except Exception:
+                pass  # column already exists
     yield
 
 
