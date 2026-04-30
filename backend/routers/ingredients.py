@@ -11,6 +11,22 @@ import schemas
 router = APIRouter()
 
 
+def _to_response(obj: models.Ingredient) -> schemas.IngredientResponse:
+    return schemas.IngredientResponse(
+        id=obj.id,
+        name=obj.name,
+        unit=obj.unit,
+        unit_cost=obj.unit_cost,
+        min_stock=obj.min_stock,
+        purchase_unit=obj.purchase_unit,
+        purchase_quantity=obj.purchase_quantity,
+        purchase_cost=obj.purchase_cost,
+        yield_percentage=obj.yield_percentage,
+        reduction_stages=obj.reduction_stages or [],
+        real_unit_cost=obj.real_unit_cost,
+    )
+
+
 @router.get("/", response_model=List[schemas.IngredientResponse])
 async def list_ingredients(
     db: AsyncSession = Depends(get_db),
@@ -21,7 +37,7 @@ async def list_ingredients(
         .where(models.Ingredient.user_id == current_user.id)
         .order_by(models.Ingredient.name)
     )
-    return result.scalars().all()
+    return [_to_response(i) for i in result.scalars().all()]
 
 
 @router.post("/", response_model=schemas.IngredientResponse, status_code=201)
@@ -42,7 +58,7 @@ async def create_ingredient(
     db.add(obj)
     await db.commit()
     await db.refresh(obj)
-    return obj
+    return _to_response(obj)
 
 
 @router.get("/{ingredient_id}", response_model=schemas.IngredientResponse)
@@ -60,7 +76,7 @@ async def get_ingredient(
     obj = result.scalar_one_or_none()
     if not obj:
         raise HTTPException(404, "Ingrediente não encontrado")
-    return obj
+    return _to_response(obj)
 
 
 @router.put("/{ingredient_id}", response_model=schemas.IngredientResponse)
@@ -92,7 +108,7 @@ async def update_ingredient(
         setattr(obj, k, v)
     await db.commit()
     await db.refresh(obj)
-    return obj
+    return _to_response(obj)
 
 
 @router.delete("/{ingredient_id}", status_code=204)

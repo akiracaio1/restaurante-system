@@ -48,7 +48,7 @@ class IngredientUpdate(IngredientBase):
 
 class IngredientResponse(IngredientBase):
     id: int
-    real_unit_cost: float
+    real_unit_cost: float = 0.0
     model_config = {"from_attributes": True}
 
 
