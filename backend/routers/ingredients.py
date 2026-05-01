@@ -1,3 +1,5 @@
+import json
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,7 +24,7 @@ def _to_response(obj: models.Ingredient) -> schemas.IngredientResponse:
         purchase_quantity=obj.purchase_quantity,
         purchase_cost=obj.purchase_cost,
         yield_percentage=obj.yield_percentage,
-        reduction_stages=obj.reduction_stages or [],
+        reduction_stages=obj.reduction_stages if isinstance(obj.reduction_stages, list) else (json.loads(obj.reduction_stages) if isinstance(obj.reduction_stages, str) and obj.reduction_stages not in ('null', '') else []),
         real_unit_cost=obj.real_unit_cost,
     )
 
