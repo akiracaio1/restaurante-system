@@ -1,3 +1,4 @@
+import json
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -26,6 +27,24 @@ async def lifespan(app: FastAPI):
                 await conn.execute(text(stmt))
             except Exception:
                 pass  # column already exists
+        # Normalize reduction_stages: re-encode rows stored as raw TEXT string
+        # before the column was treated as JSON at the ORM level.
+        try:
+            rows = (await conn.execute(
+                text("SELECT id, reduction_stages FROM ingredients WHERE reduction_stages IS NOT NULL")
+            )).fetchall()
+            for row_id, val in rows:
+                if isinstance(val, str):
+                    try:
+                        parsed = json.loads(val)
+                        await conn.execute(
+                            text("UPDATE ingredients SET reduction_stages = :v WHERE id = :id"),
+                            {"v": json.dumps(parsed), "id": row_id},
+                        )
+                    except Exception:
+                        pass
+        except Exception:
+            pass
     yield
 
 

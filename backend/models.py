@@ -1,3 +1,5 @@
+import json
+
 from sqlalchemy import Column, Integer, String, Float, ForeignKey, Text, UniqueConstraint, JSON
 from sqlalchemy.orm import relationship
 from database import Base
@@ -37,9 +39,13 @@ class Ingredient(Base):
     @property
     def yield_total(self) -> float:
         stages = self.reduction_stages
+        if isinstance(stages, str):
+            stages = json.loads(stages)
         if stages:
             result = 1.0
             for stage in stages:
+                if isinstance(stage, str):
+                    stage = json.loads(stage)
                 result *= stage.get("yield_percentage", 100) / 100.0
             return result * 100.0
         yt = self.yield_percentage
