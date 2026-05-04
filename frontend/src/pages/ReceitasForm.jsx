@@ -38,21 +38,35 @@ export default function ReceitasForm() {
   const navigate = useNavigate()
   const isEdit   = Boolean(id)
 
-  const [form, setForm]               = useState(EMPTY_FORM)
-  const [selectedIngs, setSelectedIngs] = useState([])
+  const [form, setForm]                   = useState(EMPTY_FORM)
+  const [selectedIngs, setSelectedIngs]   = useState([])
   const [availableIngs, setAvailableIngs] = useState([])
-  const [addIngId, setAddIngId]       = useState('')
-  const [addQty, setAddQty]           = useState('')
-  const [loading, setLoading]         = useState(true)
-  const [saving, setSaving]           = useState(false)
-  const [error, setError]             = useState('')
+  const [addIngId, setAddIngId]           = useState('')
+  const [addQty, setAddQty]               = useState('')
+
+  const [subRecipesList, setSubRecipesList]     = useState([])
+  const [removedEntryIds, setRemovedEntryIds]   = useState([])
+  const [availableRecipes, setAvailableRecipes] = useState([])
+  const [addSubRecipeId, setAddSubRecipeId]     = useState('')
+  const [addSubPortions, setAddSubPortions]     = useState('')
+
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving]   = useState(false)
+  const [error, setError]     = useState('')
 
   useEffect(() => {
     async function init() {
       try {
-        const { data: ings } = await ingredientesAPI.listar()
+        const [{ data: ings }, { data: recipes }] = await Promise.all([
+          ingredientesAPI.listar(),
+          receitasAPI.listar(),
+        ])
         setAvailableIngs(ings)
         if (ings.length > 0) setAddIngId(String(ings[0].id))
+
+        const selectable = isEdit ? recipes.filter(r => r.id !== Number(id)) : recipes
+        setAvailableRecipes(selectable)
+        if (selectable.length > 0) setAddSubRecipeId(String(selectable[0].id))
 
         if (isEdit) {
           const { data: recipe } = await receitasAPI.buscar(id)
@@ -68,6 +82,15 @@ export default function ReceitasForm() {
               ingredient_id: ri.ingredient_id,
               quantity:      ri.quantity,
               ing:           ings.find(i => i.id === ri.ingredient_id),
+            }))
+          )
+          setSubRecipesList(
+            (recipe.sub_recipes || []).map(sr => ({
+              entryId:         sr.id,
+              sub_recipe_id:   sr.sub_recipe_id,
+              sub_recipe_name: sr.sub_recipe_name,
+              portions:        sr.portions,
+              cost_per_portion: sr.cost_per_portion,
             }))
           )
         }
@@ -100,12 +123,37 @@ export default function ReceitasForm() {
     setSelectedIngs(prev => prev.filter(i => i.ingredient_id !== ingId))
   }
 
-  const totalCost      = selectedIngs.reduce(
+  function addSubRecipe() {
+    const recipeId = Number(addSubRecipeId)
+    const pts      = Number(addSubPortions)
+    if (!recipeId || !addSubPortions || isNaN(pts) || pts <= 0) return
+    if (subRecipesList.find(s => s.sub_recipe_id === recipeId)) return
+    const recipe = availableRecipes.find(r => r.id === recipeId)
+    if (!recipe) return
+    const cpp = recipe.yield_portions > 0 ? recipe.total_cost / recipe.yield_portions : 0
+    setSubRecipesList(prev => [
+      ...prev,
+      { entryId: null, sub_recipe_id: recipeId, sub_recipe_name: recipe.name, portions: pts, cost_per_portion: cpp },
+    ])
+    setAddSubPortions('')
+  }
+
+  function removeSubRecipe(subRecipeId) {
+    const entry = subRecipesList.find(s => s.sub_recipe_id === subRecipeId)
+    if (entry?.entryId) setRemovedEntryIds(prev => [...prev, entry.entryId])
+    setSubRecipesList(prev => prev.filter(s => s.sub_recipe_id !== subRecipeId))
+  }
+
+  const ingredientsCost = selectedIngs.reduce(
     (sum, si) => sum + (si.ing?.real_unit_cost ?? si.ing?.unit_cost ?? 0) * si.quantity, 0
   )
+  const subRecipesCost = subRecipesList.reduce(
+    (sum, sr) => sum + sr.cost_per_portion * sr.portions, 0
+  )
+  const totalCost      = ingredientsCost + subRecipesCost
   const salePrice      = Number(form.sale_price) || 0
   const portions       = Number(form.yield_portions) || 1
-  const cmvPercent     = salePrice > 0 ? (totalCost / salePrice) * 100 : 0
+  const cmvPercent     = salePrice > 0 ? (totalCost / portions / salePrice) * 100 : 0
   const costPerPortion = totalCost / portions
 
   async function submit(e) {
@@ -132,8 +180,21 @@ export default function ReceitasForm() {
 
     try {
       setSaving(true)
-      if (isEdit) await receitasAPI.atualizar(id, payload)
-      else        await receitasAPI.criar(payload)
+      let savedId = id
+      if (isEdit) {
+        await receitasAPI.atualizar(id, payload)
+      } else {
+        const { data: created } = await receitasAPI.criar(payload)
+        savedId = created.id
+      }
+
+      for (const entryId of removedEntryIds) {
+        await receitasAPI.removerSubReceita(savedId, entryId)
+      }
+      for (const sr of subRecipesList.filter(s => s.entryId === null)) {
+        await receitasAPI.adicionarSubReceita(savedId, { sub_recipe_id: sr.sub_recipe_id, portions: sr.portions })
+      }
+
       navigate('/receitas')
     } catch (err) {
       setError(err.response?.data?.detail || 'Erro ao salvar receita.')
@@ -303,44 +364,118 @@ export default function ReceitasForm() {
                   </tbody>
                 </table>
               )}
+            </>
+          )}
 
-              {selectedIngs.length > 0 && (
-                <div className="cost-box">
-                  <p className="cost-box-title">Resumo de Custos</p>
-                  <div className="cost-grid">
-                    <div className="cost-item">
-                      <span className="cost-label">Custo Total</span>
-                      <span className="cost-value">{fmt(totalCost)}</span>
-                    </div>
-                    <div className="cost-item">
-                      <span className="cost-label">Custo por Porção</span>
-                      <span className="cost-value">{fmt(costPerPortion)}</span>
-                    </div>
-                    <div className="cost-item">
-                      <span className="cost-label">CMV %</span>
-                      <span className={`cost-value ${salePrice > 0 ? cmvClass(cmvPercent) : ''}`}>
-                        {salePrice > 0 ? fmtPct(cmvPercent) : '—'}
-                      </span>
-                    </div>
+          {/* ── Sub-receitas ────────────────────────────────── */}
+          <p className="section-title">Sub-receitas</p>
+
+          {availableRecipes.length === 0 ? (
+            <div className="alert" style={{ background: 'var(--surface)', color: 'var(--muted)', border: '1px solid var(--border)', marginBottom: '1rem' }}>
+              {isEdit
+                ? 'Nenhuma outra receita disponível para usar como sub-receita.'
+                : 'Nenhuma receita disponível para usar como sub-receita.'}
+            </div>
+          ) : (
+            <>
+              <div className="add-box">
+                <p className="add-box-label">Adicionar sub-receita</p>
+                <div className="add-row">
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <select value={addSubRecipeId} onChange={e => setAddSubRecipeId(e.target.value)}>
+                      {availableRecipes.map(r => (
+                        <option key={r.id} value={r.id}>{r.name}</option>
+                      ))}
+                    </select>
                   </div>
-                  {salePrice > 0 && (
-                    <div style={{
-                      marginTop: '.85rem',
-                      padding: '.5rem .75rem',
-                      background: 'rgba(0,0,0,.04)',
-                      borderRadius: 'var(--radius-sm)',
-                      fontSize: '.82rem',
-                      fontWeight: 700,
-                    }}>
-                      {cmvLabel(cmvPercent)}
-                    </div>
-                  )}
-                  <p className="cost-hint">
-                    Referência: &lt;30% excelente · 30–35% aceitável · 35–40% atenção · &gt;40% alto
-                  </p>
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <input
+                      type="number"
+                      step="0.5"
+                      min="0.5"
+                      value={addSubPortions}
+                      onChange={e => setAddSubPortions(e.target.value)}
+                      placeholder="Porções"
+                      onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addSubRecipe())}
+                    />
+                  </div>
+                  <button type="button" className="btn btn-secondary" onClick={addSubRecipe}>
+                    + Adicionar
+                  </button>
                 </div>
+              </div>
+
+              {subRecipesList.length > 0 && (
+                <table className="ing-table">
+                  <thead>
+                    <tr>
+                      <th>Receita</th>
+                      <th>Porções</th>
+                      <th>Custo/Porção</th>
+                      <th>Subtotal</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {subRecipesList.map(sr => (
+                      <tr key={sr.sub_recipe_id}>
+                        <td style={{ fontWeight: 600 }}>🔗 {sr.sub_recipe_name}</td>
+                        <td>{sr.portions}</td>
+                        <td>{fmt(sr.cost_per_portion)}</td>
+                        <td style={{ fontWeight: 700 }}>{fmt(sr.cost_per_portion * sr.portions)}</td>
+                        <td>
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-danger btn-icon-only"
+                            onClick={() => removeSubRecipe(sr.sub_recipe_id)}
+                          >
+                            ✕
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               )}
             </>
+          )}
+
+          {/* ── Resumo de Custos ─────────────────────────────── */}
+          {(selectedIngs.length > 0 || subRecipesList.length > 0) && (
+            <div className="cost-box">
+              <p className="cost-box-title">Resumo de Custos</p>
+              <div className="cost-grid">
+                <div className="cost-item">
+                  <span className="cost-label">Custo Total</span>
+                  <span className="cost-value">{fmt(totalCost)}</span>
+                </div>
+                <div className="cost-item">
+                  <span className="cost-label">Custo por Porção</span>
+                  <span className="cost-value">{fmt(costPerPortion)}</span>
+                </div>
+                <div className="cost-item">
+                  <span className="cost-label">CMV %</span>
+                  <span className={`cost-value ${salePrice > 0 ? cmvClass(cmvPercent) : ''}`}>
+                    {salePrice > 0 ? fmtPct(cmvPercent) : '—'}
+                  </span>
+                </div>
+              </div>
+              {salePrice > 0 && (
+                <div style={{
+                  marginTop: '.85rem',
+                  padding: '.5rem .75rem',
+                  background: 'rgba(0,0,0,.04)',
+                  borderRadius: 'var(--radius-sm)',
+                  fontSize: '.82rem',
+                  fontWeight: 700,
+                }}>
+                  {cmvLabel(cmvPercent)}
+                </div>
+              )}
+              <p className="cost-hint">
+                Referência: &lt;30% excelente · 30–35% aceitável · 35–40% atenção · &gt;40% alto
+              </p>
+            </div>
           )}
 
           <div className="form-actions">

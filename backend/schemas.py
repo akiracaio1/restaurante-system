@@ -73,6 +73,21 @@ class RecipeIngredientResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class SubRecipeInput(BaseModel):
+    sub_recipe_id: int
+    portions: float
+
+
+class SubRecipeResponse(BaseModel):
+    id: int
+    sub_recipe_id: int
+    sub_recipe_name: str
+    portions: float
+    cost_per_portion: float
+    subtotal: float
+    model_config = {"from_attributes": True}
+
+
 class RecipeBase(BaseModel):
     name: str
     description: Optional[str] = None
@@ -92,6 +107,7 @@ class RecipeUpdate(RecipeBase):
 class RecipeResponse(RecipeBase):
     id: int
     ingredients: List[RecipeIngredientResponse] = []
+    sub_recipes: List[SubRecipeResponse] = []
     total_cost: float = 0.0
     cmv_percent: float = 0.0
     model_config = {"from_attributes": True}

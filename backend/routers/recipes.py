@@ -30,7 +30,29 @@ def build_response(recipe: models.Recipe) -> schemas.RecipeResponse:
                 subtotal=round(subtotal, 4),
             )
         )
-    cmv = (total_cost / recipe.sale_price * 100) if recipe.sale_price > 0 else 0.0
+
+    sub_recipes_resp = []
+    for sr in recipe.sub_recipes:
+        sub_ing_cost = sum(
+            ri.ingredient.real_unit_cost * ri.quantity
+            for ri in sr.sub_recipe.recipe_ingredients
+        )
+        cpp = (sub_ing_cost / sr.sub_recipe.yield_portions) if sr.sub_recipe.yield_portions > 0 else 0.0
+        subtotal = cpp * sr.portions
+        total_cost += subtotal
+        sub_recipes_resp.append(
+            schemas.SubRecipeResponse(
+                id=sr.id,
+                sub_recipe_id=sr.sub_recipe_id,
+                sub_recipe_name=sr.sub_recipe.name,
+                portions=sr.portions,
+                cost_per_portion=round(cpp, 4),
+                subtotal=round(subtotal, 4),
+            )
+        )
+
+    cost_per_portion = (total_cost / recipe.yield_portions) if recipe.yield_portions > 0 else 0.0
+    cmv = (cost_per_portion / recipe.sale_price * 100) if recipe.sale_price > 0 else 0.0
     return schemas.RecipeResponse(
         id=recipe.id,
         name=recipe.name,
@@ -39,15 +61,22 @@ def build_response(recipe: models.Recipe) -> schemas.RecipeResponse:
         sale_price=recipe.sale_price,
         yield_portions=recipe.yield_portions,
         ingredients=ingredients_resp,
+        sub_recipes=sub_recipes_resp,
         total_cost=round(total_cost, 4),
         cmv_percent=round(cmv, 2),
     )
 
 
-def _with_ingredients():
-    return selectinload(models.Recipe.recipe_ingredients).selectinload(
-        models.RecipeIngredient.ingredient
-    )
+def _eager_options():
+    return [
+        selectinload(models.Recipe.recipe_ingredients).selectinload(
+            models.RecipeIngredient.ingredient
+        ),
+        selectinload(models.Recipe.sub_recipes)
+            .selectinload(models.RecipeSubRecipe.sub_recipe)
+            .selectinload(models.Recipe.recipe_ingredients)
+            .selectinload(models.RecipeIngredient.ingredient),
+    ]
 
 
 @router.get("/", response_model=List[schemas.RecipeResponse])
@@ -58,7 +87,7 @@ async def list_recipes(
     result = await db.execute(
         select(models.Recipe)
         .where(models.Recipe.user_id == current_user.id)
-        .options(_with_ingredients())
+        .options(*_eager_options())
         .order_by(models.Recipe.name)
     )
     return [build_response(r) for r in result.scalars().all()]
@@ -103,7 +132,7 @@ async def create_recipe(
     result = await db.execute(
         select(models.Recipe)
         .where(models.Recipe.id == recipe.id)
-        .options(_with_ingredients())
+        .options(*_eager_options())
     )
     return build_response(result.scalar_one())
 
@@ -117,7 +146,7 @@ async def get_recipe(
     result = await db.execute(
         select(models.Recipe)
         .where(models.Recipe.id == recipe_id, models.Recipe.user_id == current_user.id)
-        .options(_with_ingredients())
+        .options(*_eager_options())
     )
     recipe = result.scalar_one_or_none()
     if not recipe:
@@ -135,7 +164,7 @@ async def update_recipe(
     result = await db.execute(
         select(models.Recipe)
         .where(models.Recipe.id == recipe_id, models.Recipe.user_id == current_user.id)
-        .options(_with_ingredients())
+        .options(*_eager_options())
     )
     recipe = result.scalar_one_or_none()
     if not recipe:
@@ -178,7 +207,7 @@ async def update_recipe(
     result = await db.execute(
         select(models.Recipe)
         .where(models.Recipe.id == recipe_id)
-        .options(_with_ingredients())
+        .options(*_eager_options())
     )
     return build_response(result.scalar_one())
 
@@ -199,4 +228,75 @@ async def delete_recipe(
     if not recipe:
         raise HTTPException(404, "Receita não encontrada")
     await db.delete(recipe)
+    await db.commit()
+
+
+@router.post("/{recipe_id}/sub-receitas", response_model=schemas.RecipeResponse, status_code=201)
+async def add_sub_recipe(
+    recipe_id: int,
+    data: schemas.SubRecipeInput,
+    db: AsyncSession = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(models.Recipe).where(
+            models.Recipe.id == recipe_id,
+            models.Recipe.user_id == current_user.id,
+        )
+    )
+    if not result.scalar_one_or_none():
+        raise HTTPException(404, "Receita não encontrada")
+
+    if data.sub_recipe_id == recipe_id:
+        raise HTTPException(400, "Uma receita não pode ser sub-receita de si mesma")
+
+    result = await db.execute(
+        select(models.Recipe).where(
+            models.Recipe.id == data.sub_recipe_id,
+            models.Recipe.user_id == current_user.id,
+        )
+    )
+    if not result.scalar_one_or_none():
+        raise HTTPException(404, f"Sub-receita ID {data.sub_recipe_id} não encontrada")
+
+    db.add(models.RecipeSubRecipe(
+        parent_recipe_id=recipe_id,
+        sub_recipe_id=data.sub_recipe_id,
+        portions=data.portions,
+    ))
+    await db.commit()
+
+    result = await db.execute(
+        select(models.Recipe).where(models.Recipe.id == recipe_id).options(*_eager_options())
+    )
+    return build_response(result.scalar_one())
+
+
+@router.delete("/{recipe_id}/sub-receitas/{entry_id}", status_code=204)
+async def remove_sub_recipe(
+    recipe_id: int,
+    entry_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(models.Recipe).where(
+            models.Recipe.id == recipe_id,
+            models.Recipe.user_id == current_user.id,
+        )
+    )
+    if not result.scalar_one_or_none():
+        raise HTTPException(404, "Receita não encontrada")
+
+    result = await db.execute(
+        select(models.RecipeSubRecipe).where(
+            models.RecipeSubRecipe.id == entry_id,
+            models.RecipeSubRecipe.parent_recipe_id == recipe_id,
+        )
+    )
+    entry = result.scalar_one_or_none()
+    if not entry:
+        raise HTTPException(404, "Sub-receita não encontrada")
+
+    await db.delete(entry)
     await db.commit()

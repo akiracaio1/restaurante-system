@@ -169,9 +169,16 @@ export default function ReceitasLista() {
           {filtered.map(item => (
             <div key={item.id} className="recipe-card">
               <div className="recipe-card-header">
-                <span className={`cat-badge ${CAT_CLASS[item.category] || 'cat-outro'}`}>
-                  {CAT_ICON[item.category] || '📦'} {item.category}
-                </span>
+                <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                  <span className={`cat-badge ${CAT_CLASS[item.category] || 'cat-outro'}`}>
+                    {CAT_ICON[item.category] || '📦'} {item.category}
+                  </span>
+                  {item.sub_recipes && item.sub_recipes.length > 0 && (
+                    <span className="badge" style={{ background: 'var(--orange)', color: '#fff', fontSize: '.7rem' }}>
+                      🔗 {item.sub_recipes.length} sub-receita{item.sub_recipes.length !== 1 ? 's' : ''}
+                    </span>
+                  )}
+                </div>
                 <div className="recipe-card-name">{item.name}</div>
                 {item.description && (
                   <div className="recipe-card-desc">{item.description}</div>

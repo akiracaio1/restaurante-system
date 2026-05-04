@@ -88,6 +88,12 @@ class Recipe(Base):
     recipe_ingredients = relationship(
         "RecipeIngredient", back_populates="recipe", cascade="all, delete-orphan"
     )
+    sub_recipes = relationship(
+        "RecipeSubRecipe",
+        foreign_keys="[RecipeSubRecipe.parent_recipe_id]",
+        back_populates="parent_recipe",
+        cascade="all, delete-orphan",
+    )
 
 
 class RecipeIngredient(Base):
@@ -100,3 +106,15 @@ class RecipeIngredient(Base):
 
     recipe = relationship("Recipe", back_populates="recipe_ingredients")
     ingredient = relationship("Ingredient", back_populates="recipe_ingredients")
+
+
+class RecipeSubRecipe(Base):
+    __tablename__ = "recipe_sub_recipes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    parent_recipe_id = Column(Integer, ForeignKey("recipes.id", ondelete="CASCADE"), nullable=False, index=True)
+    sub_recipe_id = Column(Integer, ForeignKey("recipes.id", ondelete="CASCADE"), nullable=False)
+    portions = Column(Float, nullable=False)
+
+    parent_recipe = relationship("Recipe", foreign_keys="[RecipeSubRecipe.parent_recipe_id]", back_populates="sub_recipes")
+    sub_recipe = relationship("Recipe", foreign_keys="[RecipeSubRecipe.sub_recipe_id]")

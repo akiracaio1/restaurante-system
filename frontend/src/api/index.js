@@ -33,9 +33,11 @@ export const ingredientesAPI = {
 }
 
 export const receitasAPI = {
-  listar:    ()         => api.get('/receitas/'),
-  buscar:    (id)       => api.get(`/receitas/${id}`),
-  criar:     (data)     => api.post('/receitas/', data),
-  atualizar: (id, data) => api.put(`/receitas/${id}`, data),
-  excluir:   (id)       => api.delete(`/receitas/${id}`),
+  listar:             ()              => api.get('/receitas/'),
+  buscar:             (id)            => api.get(`/receitas/${id}`),
+  criar:              (data)          => api.post('/receitas/', data),
+  atualizar:          (id, data)      => api.put(`/receitas/${id}`, data),
+  excluir:            (id)            => api.delete(`/receitas/${id}`),
+  adicionarSubReceita:(id, data)      => api.post(`/receitas/${id}/sub-receitas`, data),
+  removerSubReceita:  (id, entryId)   => api.delete(`/receitas/${id}/sub-receitas/${entryId}`),
 }
