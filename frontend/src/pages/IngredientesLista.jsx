@@ -5,8 +5,9 @@ import { ingredientesAPI } from '../api'
 const fmt = (v, d = 2) => `R$ ${Number(v).toFixed(d).replace('.', ',')}`
 
 function yieldClass(pct) {
+  if (pct > 100) return 'boost'
   if (pct >= 90) return 'good'
-  if (pct >= 70) return 'ok'
+  if (pct >= 50) return 'ok'
   return 'bad'
 }
 
@@ -116,10 +117,11 @@ export default function IngredientesLista() {
       ) : (
         <div className="cards-grid">
           {filtered.map(item => {
-            const yieldTotal   = calcYieldTotal(item)
-            const hasReduction = yieldTotal < 99.9
-            const cls          = yieldClass(yieldTotal)
-            const isCalc       = hasReduction && item.real_unit_cost != null
+            const yieldTotal       = calcYieldTotal(item)
+            const hasYieldFactor   = Math.abs(yieldTotal - 100) > 0.1
+            const hasProcessingCost = item.processing_cost_per_unit != null || (item.processing_cost_per_batch != null && item.processing_batch_size != null)
+            const cls              = yieldClass(yieldTotal)
+            const isCalc           = (hasYieldFactor || hasProcessingCost) && item.real_unit_cost != null
 
             return (
               <div key={item.id} className="ing-card">
@@ -138,6 +140,17 @@ export default function IngredientesLista() {
                     <div className="ing-card-row">
                       <span className="ing-card-label">Custo real</span>
                       <span className="ing-card-value highlight">{fmt(item.real_unit_cost, 4)}/{item.unit}</span>
+                    </div>
+                  )}
+
+                  {(item.processing_cost_per_unit != null || item.processing_cost_per_batch != null) && (
+                    <div className="ing-card-row">
+                      <span className="ing-card-label">Processamento</span>
+                      <span className="ing-card-value" style={{ color: 'var(--muted)', fontSize: '.8rem' }}>
+                        {item.processing_cost_per_unit != null
+                          ? `+${fmt(item.processing_cost_per_unit, 2)}/${item.unit}`
+                          : `+${fmt(item.processing_cost_per_batch, 2)}/lote`}
+                      </span>
                     </div>
                   )}
 

@@ -8,6 +8,9 @@ const EMPTY = {
   name: '', unit: 'kg', unit_cost: '', min_stock: '',
   purchase_unit: '', purchase_quantity: '', purchase_cost: '',
   yield_percentage: '100',
+  processing_cost_per_unit: '',
+  processing_cost_per_batch: '',
+  processing_batch_size: '',
 }
 
 function calcYieldTotal(stages, yieldPct) {
@@ -18,8 +21,9 @@ function calcYieldTotal(stages, yieldPct) {
 }
 
 function yieldColor(pct) {
+  if (pct > 100) return '#7c3aed'
   if (pct >= 90) return '#1a7f46'
-  if (pct >= 70) return 'var(--orange)'
+  if (pct >= 50) return 'var(--orange)'
   return '#c0392b'
 }
 
@@ -48,6 +52,9 @@ export default function IngredientesForm() {
           purchase_quantity: data.purchase_quantity != null ? String(data.purchase_quantity) : '',
           purchase_cost:     data.purchase_cost     != null ? String(data.purchase_cost)     : '',
           yield_percentage:  String(data.yield_percentage ?? 100),
+          processing_cost_per_unit:  data.processing_cost_per_unit  != null ? String(data.processing_cost_per_unit)  : '',
+          processing_cost_per_batch: data.processing_cost_per_batch != null ? String(data.processing_cost_per_batch) : '',
+          processing_batch_size:     data.processing_batch_size     != null ? String(data.processing_batch_size)     : '',
         })
         setStages(data.reduction_stages || [])
       })
@@ -68,7 +75,7 @@ export default function IngredientesForm() {
   function addStage() {
     const name = newStage.name.trim()
     const yPct = parseFloat(newStage.yield_percentage)
-    if (!name || isNaN(yPct) || yPct <= 0 || yPct > 100) return
+    if (!name || isNaN(yPct) || yPct <= 0) return
     setStages(prev => [...prev, { name, yield_percentage: yPct }])
     setNewStage({ name: '', yield_percentage: '' })
   }
@@ -77,10 +84,18 @@ export default function IngredientesForm() {
     setStages(prev => prev.filter((_, i) => i !== idx))
   }
 
-  const yieldTotal    = calcYieldTotal(stages, form.yield_percentage)
-  const realUnitCost  =
+  const yieldTotal = calcYieldTotal(stages, form.yield_percentage)
+  const processingExtra = (() => {
+    const perUnit = parseFloat(form.processing_cost_per_unit)
+    if (!isNaN(perUnit) && perUnit > 0) return perUnit
+    const perBatch = parseFloat(form.processing_cost_per_batch)
+    const batchSize = parseFloat(form.processing_batch_size)
+    if (!isNaN(perBatch) && perBatch > 0 && !isNaN(batchSize) && batchSize > 0) return perBatch / batchSize
+    return 0
+  })()
+  const realUnitCost =
     form.unit_cost !== '' && yieldTotal > 0
-      ? parseFloat(form.unit_cost) / (yieldTotal / 100)
+      ? (parseFloat(form.unit_cost) + processingExtra) / (yieldTotal / 100)
       : null
 
   async function submit(e) {
@@ -93,7 +108,7 @@ export default function IngredientesForm() {
     if (form.min_stock === '' || isNaN(form.min_stock)) return setError('Estoque mínimo inválido.')
 
     const yPct = parseFloat(form.yield_percentage)
-    if (isNaN(yPct) || yPct <= 0 || yPct > 100) return setError('Aproveitamento deve ser entre 1 e 100.')
+    if (isNaN(yPct) || yPct <= 0) return setError('Aproveitamento deve ser maior que 0.')
 
     const hasPurchase = form.purchase_quantity || form.purchase_cost || form.purchase_unit
     if (hasPurchase && (!form.purchase_unit.trim() || !form.purchase_quantity || !form.purchase_cost)) {
@@ -110,6 +125,9 @@ export default function IngredientesForm() {
       purchase_cost:     form.purchase_cost          ? Number(form.purchase_cost)     : null,
       yield_percentage:  yPct,
       reduction_stages:  stages.length > 0 ? stages : null,
+      processing_cost_per_unit:  form.processing_cost_per_unit  ? Number(form.processing_cost_per_unit)  : null,
+      processing_cost_per_batch: form.processing_cost_per_batch ? Number(form.processing_cost_per_batch) : null,
+      processing_batch_size:     form.processing_batch_size     ? Number(form.processing_batch_size)     : null,
     }
 
     try {
@@ -263,8 +281,64 @@ export default function IngredientesForm() {
             </div>
           )}
 
-          {/* ── Fator de redução ────────────────────────── */}
-          <p className="section-title">Fator de Redução</p>
+          {/* ── Custos de processamento ─────────────────── */}
+          <p className="section-title">Custos de Processamento</p>
+          <div className="form-grid" style={{ marginBottom: '1.5rem' }}>
+            <div className="form-group">
+              <label htmlFor="processing_cost_per_unit">
+                Custo adicional por {form.unit} (R$)
+                <span style={{ color: 'var(--muted)', fontSize: '.7rem', marginLeft: '.4rem', fontWeight: 500 }}>opcional</span>
+              </label>
+              <input
+                id="processing_cost_per_unit"
+                name="processing_cost_per_unit"
+                type="number"
+                step="0.01"
+                min="0"
+                value={form.processing_cost_per_unit}
+                onChange={handle}
+                placeholder={`Ex: 2,00 (limpeza por ${form.unit})`}
+              />
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="processing_cost_per_batch">
+                Custo adicional por lote/peça (R$)
+                <span style={{ color: 'var(--muted)', fontSize: '.7rem', marginLeft: '.4rem', fontWeight: 500 }}>opcional</span>
+              </label>
+              <input
+                id="processing_cost_per_batch"
+                name="processing_cost_per_batch"
+                type="number"
+                step="0.01"
+                min="0"
+                value={form.processing_cost_per_batch}
+                onChange={handle}
+                placeholder="Ex: 10,00 por peça"
+              />
+            </div>
+
+            {form.processing_cost_per_batch && (
+              <div className="form-group">
+                <label htmlFor="processing_batch_size">
+                  Tamanho do lote ({form.unit} por peça)
+                </label>
+                <input
+                  id="processing_batch_size"
+                  name="processing_batch_size"
+                  type="number"
+                  step="0.001"
+                  min="0.001"
+                  value={form.processing_batch_size}
+                  onChange={handle}
+                  placeholder={`Ex: 2000 ${form.unit} por peça`}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* ── Fator de aproveitamento/rendimento ──────── */}
+          <p className="section-title">Fator de Aproveitamento / Rendimento</p>
           <div className="form-grid" style={{ marginBottom: '1rem' }}>
             <div className="form-group">
               <label htmlFor="yield_percentage">
@@ -281,9 +355,9 @@ export default function IngredientesForm() {
                 type="number"
                 step="0.1"
                 min="0.1"
-                max="100"
                 value={form.yield_percentage}
                 onChange={handle}
+                placeholder="Ex: 90 (perde 10%) ou 228 (rende 128% a mais)"
                 disabled={stages.length > 0}
               />
             </div>
@@ -312,9 +386,16 @@ export default function IngredientesForm() {
                   }} />
                 </div>
                 {realUnitCost != null && (
-                  <span style={{ fontSize: '.8rem', color: 'var(--orange)', display: 'block', marginTop: '.4rem', fontWeight: 700 }}>
-                    Custo real: R$ {realUnitCost.toFixed(4)} / {form.unit}
-                  </span>
+                  <>
+                    {processingExtra > 0 && (
+                      <span style={{ fontSize: '.75rem', color: 'var(--muted)', display: 'block', marginTop: '.3rem', fontWeight: 600 }}>
+                        + R$ {processingExtra.toFixed(4)}/{form.unit} processamento
+                      </span>
+                    )}
+                    <span style={{ fontSize: '.8rem', color: 'var(--orange)', display: 'block', marginTop: '.2rem', fontWeight: 700 }}>
+                      Custo real: R$ {realUnitCost.toFixed(4)} / {form.unit}
+                    </span>
+                  </>
                 )}
               </div>
             </div>
@@ -347,10 +428,9 @@ export default function IngredientesForm() {
                 type="number"
                 step="0.1"
                 min="0.1"
-                max="100"
                 value={newStage.yield_percentage}
                 onChange={e => setNewStage(p => ({ ...p, yield_percentage: e.target.value }))}
-                placeholder="% aproveitamento"
+                placeholder="% (ex: 90 ou 228)"
                 onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addStage())}
               />
             </div>

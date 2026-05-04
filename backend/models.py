@@ -33,6 +33,10 @@ class Ingredient(Base):
     yield_percentage = Column(Float, nullable=False, default=100.0)
     reduction_stages = Column(JSON, nullable=True)
 
+    processing_cost_per_unit = Column(Float, nullable=True)
+    processing_cost_per_batch = Column(Float, nullable=True)
+    processing_batch_size = Column(Float, nullable=True)
+
     owner = relationship("User", back_populates="ingredients")
     recipe_ingredients = relationship("RecipeIngredient", back_populates="ingredient")
 
@@ -54,9 +58,18 @@ class Ingredient(Base):
     @property
     def real_unit_cost(self) -> float:
         yt = self.yield_total
+        extra = 0.0
+        if self.processing_cost_per_unit is not None:
+            extra = self.processing_cost_per_unit
+        elif (
+            self.processing_cost_per_batch is not None
+            and self.processing_batch_size is not None
+            and self.processing_batch_size > 0
+        ):
+            extra = self.processing_cost_per_batch / self.processing_batch_size
         if yt > 0:
-            return self.unit_cost / (yt / 100.0)
-        return self.unit_cost
+            return (self.unit_cost + extra) / (yt / 100.0)
+        return self.unit_cost + extra
 
 
 class Recipe(Base):

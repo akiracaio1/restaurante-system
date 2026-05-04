@@ -36,6 +36,9 @@ class IngredientBase(BaseModel):
     purchase_cost: Optional[float] = None
     yield_percentage: float = 100.0
     reduction_stages: Optional[List[ReductionStage]] = None
+    processing_cost_per_unit: Optional[float] = None
+    processing_cost_per_batch: Optional[float] = None
+    processing_batch_size: Optional[float] = None
 
 
 class IngredientCreate(IngredientBase):

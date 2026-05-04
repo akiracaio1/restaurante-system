@@ -392,6 +392,7 @@ body {
 .yield-pct.good    { color: #1a7f46; }
 .yield-pct.ok      { color: var(--orange); }
 .yield-pct.bad     { color: #c0392b; }
+.yield-pct.boost   { color: #7c3aed; }
 
 .yield-track {
   background: #E2E8F0;
@@ -404,9 +405,10 @@ body {
   border-radius: 99px;
   transition: width .4s ease;
 }
-.yield-fill.good { background: linear-gradient(90deg, #1a7f46, #40916C); }
-.yield-fill.ok   { background: linear-gradient(90deg, var(--orange), #FF8C42); }
-.yield-fill.bad  { background: linear-gradient(90deg, #c0392b, #e74c3c); }
+.yield-fill.good  { background: linear-gradient(90deg, #1a7f46, #40916C); }
+.yield-fill.ok    { background: linear-gradient(90deg, var(--orange), #FF8C42); }
+.yield-fill.bad   { background: linear-gradient(90deg, #c0392b, #e74c3c); }
+.yield-fill.boost { background: linear-gradient(90deg, #7c3aed, #a78bfa); }
 
 .ing-card-actions {
   padding: .75rem 1.2rem;

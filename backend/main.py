@@ -15,6 +15,9 @@ _NEW_INGREDIENT_COLS = [
     "ALTER TABLE ingredients ADD COLUMN purchase_cost FLOAT",
     "ALTER TABLE ingredients ADD COLUMN yield_percentage FLOAT DEFAULT 100.0",
     "ALTER TABLE ingredients ADD COLUMN reduction_stages TEXT",
+    "ALTER TABLE ingredients ADD COLUMN processing_cost_per_unit FLOAT",
+    "ALTER TABLE ingredients ADD COLUMN processing_cost_per_batch FLOAT",
+    "ALTER TABLE ingredients ADD COLUMN processing_batch_size FLOAT",
 ]
 
 

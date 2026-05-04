@@ -26,6 +26,9 @@ def _to_response(obj: models.Ingredient) -> schemas.IngredientResponse:
         yield_percentage=obj.yield_percentage,
         reduction_stages=obj.reduction_stages if isinstance(obj.reduction_stages, list) else (json.loads(obj.reduction_stages) if isinstance(obj.reduction_stages, str) and obj.reduction_stages not in ('null', '') else []),
         real_unit_cost=obj.real_unit_cost,
+        processing_cost_per_unit=obj.processing_cost_per_unit,
+        processing_cost_per_batch=obj.processing_cost_per_batch,
+        processing_batch_size=obj.processing_batch_size,
     )
 
 
