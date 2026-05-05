@@ -176,13 +176,13 @@ class PurchaseResponse(BaseModel):
 # ── Stock ─────────────────────────────────────────────────────────────────────
 
 class StockResponse(BaseModel):
-    id: int
+    id: Optional[int] = None
     ingredient_id: int
     ingredient_name: str
     unit: str
     quantity: float
     min_stock: float
-    updated_at: datetime
+    updated_at: Optional[datetime] = None
     model_config = {"from_attributes": True}
 
 

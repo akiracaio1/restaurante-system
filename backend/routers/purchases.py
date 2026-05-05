@@ -12,6 +12,20 @@ import schemas
 
 router = APIRouter()
 
+_UNIT_CONVERSIONS: dict[tuple[str, str], float] = {
+    ('kg', 'g'):  1000.0,
+    ('g',  'kg'): 0.001,
+    ('L',  'ml'): 1000.0,
+    ('ml', 'L'):  0.001,
+}
+
+
+def convert_to_base(quantity: float, from_unit: str, to_unit: str) -> float:
+    if from_unit == to_unit:
+        return quantity
+    factor = _UNIT_CONVERSIONS.get((from_unit, to_unit))
+    return quantity * factor if factor is not None else quantity
+
 
 def _item_to_response(item: models.PurchaseItem) -> schemas.PurchaseItemResponse:
     return schemas.PurchaseItemResponse(
@@ -88,7 +102,8 @@ async def create_purchase(
         if not ingredient:
             raise HTTPException(404, f"Ingrediente {item_data.ingredient_id} não encontrado")
 
-        unit_cost = item_data.total_price / item_data.quantity
+        qty_base = convert_to_base(item_data.quantity, item_data.unit, ingredient.unit)
+        unit_cost = item_data.total_price / qty_base
         previous_unit_cost = ingredient.unit_cost
 
         item = models.PurchaseItem(
@@ -114,13 +129,13 @@ async def create_purchase(
         )
         stock = stock_result.scalar_one_or_none()
         if stock:
-            stock.quantity += item_data.quantity
+            stock.quantity += qty_base
             stock.updated_at = datetime.utcnow()
         else:
             stock = models.Stock(
                 user_id=current_user.id,
                 ingredient_id=item_data.ingredient_id,
-                quantity=item_data.quantity,
+                quantity=qty_base,
                 updated_at=datetime.utcnow(),
             )
             db.add(stock)

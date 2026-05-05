@@ -30,13 +30,31 @@ async def list_stock(
     db: AsyncSession = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    result = await db.execute(
+    ing_result = await db.execute(
+        select(models.Ingredient)
+        .where(models.Ingredient.user_id == current_user.id)
+        .order_by(models.Ingredient.name)
+    )
+    ingredients = ing_result.scalars().all()
+
+    stock_result = await db.execute(
         select(models.Stock)
         .where(models.Stock.user_id == current_user.id)
-        .options(selectinload(models.Stock.ingredient))
-        .order_by(models.Stock.ingredient_id)
     )
-    return [_to_response(s) for s in result.scalars().all()]
+    stock_by_ing = {s.ingredient_id: s for s in stock_result.scalars().all()}
+
+    return [
+        schemas.StockResponse(
+            id=stock_by_ing[ing.id].id if ing.id in stock_by_ing else None,
+            ingredient_id=ing.id,
+            ingredient_name=ing.name,
+            unit=ing.unit,
+            quantity=stock_by_ing[ing.id].quantity if ing.id in stock_by_ing else 0.0,
+            min_stock=ing.min_stock or 0.0,
+            updated_at=stock_by_ing[ing.id].updated_at if ing.id in stock_by_ing else None,
+        )
+        for ing in ingredients
+    ]
 
 
 # /movimentacoes/ must be before /{ingredient_id} to avoid routing conflicts

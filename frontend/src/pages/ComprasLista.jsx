@@ -117,12 +117,6 @@ export default function ComprasLista() {
                 {item.supplier && <span className="badge badge-unit">{item.supplier}</span>}
               </div>
               <div className="ing-card-body">
-                {item.location && (
-                  <div className="ing-card-row">
-                    <span className="ing-card-label">📍 Local</span>
-                    <span className="ing-card-value">{item.location}</span>
-                  </div>
-                )}
                 <div className="ing-card-row">
                   <span className="ing-card-label">Itens</span>
                   <span className="ing-card-value">

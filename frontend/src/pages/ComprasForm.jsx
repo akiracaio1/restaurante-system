@@ -4,6 +4,16 @@ import { comprasAPI, ingredientesAPI } from '../api'
 
 const fmt = (v, d = 4) => `R$ ${Number(v).toFixed(d).replace('.', ',')}`
 
+const CONVERSIONS = { 'kg→g': 1000, 'g→kg': 0.001, 'L→ml': 1000, 'ml→L': 0.001 }
+
+function convertToBase(qty, fromUnit, toUnit) {
+  if (fromUnit === toUnit) return { qty, factor: null }
+  const key = `${fromUnit}→${toUnit}`
+  const factor = CONVERSIONS[key]
+  if (factor != null) return { qty: qty * factor, factor }
+  return { qty, factor: null }
+}
+
 function today() {
   return new Date().toISOString().slice(0, 10)
 }
@@ -11,7 +21,7 @@ function today() {
 export default function ComprasForm() {
   const navigate = useNavigate()
 
-  const [form, setForm]           = useState({ date: today(), supplier: '', location: '', notes: '' })
+  const [form, setForm]           = useState({ date: today(), supplier: '', notes: '' })
   const [ingredients, setIngredients] = useState([])
   const [items, setItems]         = useState([])
   const [addIngId, setAddIngId]   = useState('')
@@ -57,15 +67,18 @@ export default function ComprasForm() {
     const ing = ingredients.find(i => i.id === ingId)
     if (!ing) return
 
+    const { qty: qtyBase, factor } = convertToBase(qty, addUnit, ing.unit)
+    const unitCost = total / qtyBase
+
     setItems(prev => {
       const exists = prev.find(i => i.ingredient_id === ingId)
       if (exists) {
         return prev.map(i => i.ingredient_id === ingId
-          ? { ...i, quantity: qty, unit: addUnit, total_price: total, unit_cost: total / qty }
+          ? { ...i, quantity: qty, unit: addUnit, total_price: total, unit_cost: unitCost, qtyBase, convFactor: factor }
           : i
         )
       }
-      return [...prev, { ingredient_id: ingId, quantity: qty, unit: addUnit, total_price: total, unit_cost: total / qty, ing }]
+      return [...prev, { ingredient_id: ingId, quantity: qty, unit: addUnit, total_price: total, unit_cost: unitCost, qtyBase, convFactor: factor, ing }]
     })
     setAddQty('')
     setAddTotal('')
@@ -84,7 +97,6 @@ export default function ComprasForm() {
     const payload = {
       date: form.date,
       supplier: form.supplier.trim() || null,
-      location: form.location.trim() || null,
       notes: form.notes.trim() || null,
       items: items.map(i => ({
         ingredient_id: i.ingredient_id,
@@ -108,9 +120,17 @@ export default function ComprasForm() {
   if (loading) return <div className="loading">Carregando…</div>
 
   const selectedIng = ingredients.find(i => String(i.id) === addIngId)
-  const newUnitCost = Number(addQty) > 0 && Number(addTotal) > 0
-    ? Number(addTotal) / Number(addQty)
-    : null
+  let newUnitCost = null
+  let conversionNote = null
+  if (selectedIng && Number(addQty) > 0 && Number(addTotal) > 0) {
+    const qty = Number(addQty)
+    const total = Number(addTotal)
+    const { qty: qtyBase, factor } = convertToBase(qty, addUnit, selectedIng.unit)
+    newUnitCost = total / qtyBase
+    if (factor !== null) {
+      conversionNote = `${qty} ${addUnit} = ${qtyBase}${selectedIng.unit}`
+    }
+  }
   const grandTotal = items.reduce((s, i) => s + i.total_price, 0)
 
   return (
@@ -137,10 +157,6 @@ export default function ComprasForm() {
             <div className="form-group">
               <label htmlFor="supplier">Fornecedor</label>
               <input id="supplier" name="supplier" value={form.supplier} onChange={handle} placeholder="Nome do fornecedor" />
-            </div>
-            <div className="form-group">
-              <label htmlFor="location">Local</label>
-              <input id="location" name="location" value={form.location} onChange={handle} placeholder="Mercado, distribuidora…" />
             </div>
             <div className="form-group full">
               <label htmlFor="notes">Observações</label>
@@ -205,6 +221,9 @@ export default function ComprasForm() {
 
                 {selectedIng && newUnitCost !== null && (
                   <div style={{ marginTop: '.6rem', fontSize: '.84rem', display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
+                    {conversionNote && (
+                      <span style={{ color: 'var(--muted)' }}>{conversionNote} →</span>
+                    )}
                     <span>
                       Custo novo: <strong style={{ color: 'var(--orange)' }}>{fmt(newUnitCost)}/{selectedIng.unit}</strong>
                     </span>
