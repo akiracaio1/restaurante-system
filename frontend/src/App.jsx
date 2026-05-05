@@ -9,6 +9,10 @@ import IngredientesLista from './pages/IngredientesLista'
 import IngredientesForm from './pages/IngredientesForm'
 import ReceitasLista from './pages/ReceitasLista'
 import ReceitasForm from './pages/ReceitasForm'
+import ComprasLista from './pages/ComprasLista'
+import ComprasForm from './pages/ComprasForm'
+import EstoqueLista from './pages/EstoqueLista'
+import IngredienteHistorico from './pages/IngredienteHistorico'
 
 export default function App() {
   return (
@@ -26,14 +30,18 @@ export default function App() {
                   <Navbar />
                   <main className="main-content">
                     <Routes>
-                      <Route path="/"                          element={<Dashboard />} />
-                      <Route path="/ingredientes"              element={<IngredientesLista />} />
-                      <Route path="/ingredientes/novo"         element={<IngredientesForm />} />
-                      <Route path="/ingredientes/:id/editar"  element={<IngredientesForm />} />
-                      <Route path="/receitas"                  element={<ReceitasLista />} />
-                      <Route path="/receitas/nova"             element={<ReceitasForm />} />
-                      <Route path="/receitas/:id/editar"      element={<ReceitasForm />} />
-                      <Route path="*"                          element={<Navigate to="/" replace />} />
+                      <Route path="/"                                element={<Dashboard />} />
+                      <Route path="/ingredientes"                    element={<IngredientesLista />} />
+                      <Route path="/ingredientes/novo"               element={<IngredientesForm />} />
+                      <Route path="/ingredientes/:id/editar"        element={<IngredientesForm />} />
+                      <Route path="/ingredientes/:id/historico"     element={<IngredienteHistorico />} />
+                      <Route path="/receitas"                        element={<ReceitasLista />} />
+                      <Route path="/receitas/nova"                   element={<ReceitasForm />} />
+                      <Route path="/receitas/:id/editar"            element={<ReceitasForm />} />
+                      <Route path="/compras"                         element={<ComprasLista />} />
+                      <Route path="/compras/nova"                    element={<ComprasForm />} />
+                      <Route path="/estoque"                         element={<EstoqueLista />} />
+                      <Route path="*"                                element={<Navigate to="/" replace />} />
                     </Routes>
                   </main>
                 </div>

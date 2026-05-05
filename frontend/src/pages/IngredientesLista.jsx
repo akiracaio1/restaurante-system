@@ -177,6 +177,9 @@ export default function IngredientesLista() {
                 </div>
 
                 <div className="ing-card-actions">
+                  <Link to={`/ingredientes/${item.id}/historico`} className="btn btn-sm btn-outline">
+                    📈 Histórico
+                  </Link>
                   <Link to={`/ingredientes/${item.id}/editar`} className="btn btn-sm btn-outline">
                     Editar
                   </Link>

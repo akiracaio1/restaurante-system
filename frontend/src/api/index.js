@@ -41,3 +41,17 @@ export const receitasAPI = {
   adicionarSubReceita:(id, data)      => api.post(`/receitas/${id}/sub-receitas`, data),
   removerSubReceita:  (id, entryId)   => api.delete(`/receitas/${id}/sub-receitas/${entryId}`),
 }
+
+export const comprasAPI = {
+  listar:    ()              => api.get('/compras/'),
+  buscar:    (id)            => api.get(`/compras/${id}`),
+  criar:     (data)          => api.post('/compras/', data),
+  excluir:   (id)            => api.delete(`/compras/${id}`),
+  historico: (ingredientId)  => api.get(`/compras/historico/${ingredientId}`),
+}
+
+export const estoqueAPI = {
+  listar:        ()                   => api.get('/estoque/'),
+  ajustar:       (ingredientId, data) => api.put(`/estoque/${ingredientId}`, data),
+  movimentacoes: (ingredientId)       => api.get(`/estoque/movimentacoes/${ingredientId}`),
+}

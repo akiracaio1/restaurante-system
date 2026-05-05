@@ -54,6 +54,18 @@ export default function Navbar() {
         >
           🍽️ <span className="nav-link-text">Receitas</span>
         </NavLink>
+        <NavLink
+          to="/compras"
+          className={({ isActive }) => 'nav-link' + (isActive ? ' active' : '')}
+        >
+          🛒 <span className="nav-link-text">Compras</span>
+        </NavLink>
+        <NavLink
+          to="/estoque"
+          className={({ isActive }) => 'nav-link' + (isActive ? ' active' : '')}
+        >
+          📦 <span className="nav-link-text">Estoque</span>
+        </NavLink>
       </div>
 
       <div className="nav-user" ref={dropRef}>

@@ -1,5 +1,6 @@
 from pydantic import BaseModel, EmailStr
 from typing import List, Optional
+from datetime import date, datetime
 
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
@@ -110,4 +111,92 @@ class RecipeResponse(RecipeBase):
     sub_recipes: List[SubRecipeResponse] = []
     total_cost: float = 0.0
     cmv_percent: float = 0.0
+    model_config = {"from_attributes": True}
+
+
+# ── Purchases ─────────────────────────────────────────────────────────────────
+
+class PurchaseItemInput(BaseModel):
+    ingredient_id: int
+    quantity: float
+    unit: str
+    total_price: float
+    notes: Optional[str] = None
+
+
+class PurchaseCreate(BaseModel):
+    date: date
+    supplier: Optional[str] = None
+    location: Optional[str] = None
+    notes: Optional[str] = None
+    items: List[PurchaseItemInput] = []
+
+
+class PurchaseItemResponse(BaseModel):
+    id: int
+    ingredient_id: int
+    ingredient_name: str
+    quantity: float
+    unit: str
+    total_price: float
+    unit_cost: float
+    previous_unit_cost: Optional[float] = None
+    notes: Optional[str] = None
+    model_config = {"from_attributes": True}
+
+
+class PurchaseItemHistoryResponse(BaseModel):
+    id: int
+    ingredient_id: int
+    ingredient_name: str
+    quantity: float
+    unit: str
+    total_price: float
+    unit_cost: float
+    previous_unit_cost: Optional[float] = None
+    notes: Optional[str] = None
+    purchase_date: date
+    supplier: Optional[str] = None
+    location: Optional[str] = None
+    model_config = {"from_attributes": True}
+
+
+class PurchaseResponse(BaseModel):
+    id: int
+    date: date
+    supplier: Optional[str] = None
+    location: Optional[str] = None
+    notes: Optional[str] = None
+    created_at: datetime
+    items: List[PurchaseItemResponse] = []
+    total: float = 0.0
+    model_config = {"from_attributes": True}
+
+
+# ── Stock ─────────────────────────────────────────────────────────────────────
+
+class StockResponse(BaseModel):
+    id: int
+    ingredient_id: int
+    ingredient_name: str
+    unit: str
+    quantity: float
+    min_stock: float
+    updated_at: datetime
+    model_config = {"from_attributes": True}
+
+
+class StockAdjustInput(BaseModel):
+    quantity: float
+    notes: Optional[str] = None
+
+
+class StockMovementResponse(BaseModel):
+    id: int
+    type: str
+    quantity: float
+    reason: str
+    notes: Optional[str] = None
+    created_at: datetime
+    ingredient_name: str
     model_config = {"from_attributes": True}
