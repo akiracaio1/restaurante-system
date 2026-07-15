@@ -23,6 +23,39 @@ _NEW_INGREDIENT_COLS = [
     "ALTER TABLE ingredients ADD COLUMN processing_batch_size FLOAT",
 ]
 
+_NEW_CHANNEL_TABLES = [
+    """
+    CREATE TABLE IF NOT EXISTS sales_channels (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name VARCHAR(120) NOT NULL,
+        fee_percent FLOAT,
+        fixed_cost FLOAT,
+        CONSTRAINT uq_channel_user_name UNIQUE (user_id, name)
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS ix_sales_channels_user_id ON sales_channels (user_id)",
+    """
+    CREATE TABLE IF NOT EXISTS recipe_channel_prices (
+        id SERIAL PRIMARY KEY,
+        recipe_id INTEGER NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
+        channel_id INTEGER NOT NULL REFERENCES sales_channels(id) ON DELETE CASCADE,
+        sale_price FLOAT NOT NULL,
+        CONSTRAINT uq_recipe_channel UNIQUE (recipe_id, channel_id)
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS ix_recipe_channel_prices_recipe_id ON recipe_channel_prices (recipe_id)",
+    "CREATE INDEX IF NOT EXISTS ix_recipe_channel_prices_channel_id ON recipe_channel_prices (channel_id)",
+    """
+    CREATE TABLE IF NOT EXISTS recipe_channel_ingredients (
+        id SERIAL PRIMARY KEY,
+        recipe_channel_price_id INTEGER NOT NULL REFERENCES recipe_channel_prices(id) ON DELETE CASCADE,
+        ingredient_id INTEGER NOT NULL REFERENCES ingredients(id),
+        quantity FLOAT NOT NULL
+    )
+    """,
+]
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -33,6 +66,11 @@ async def lifespan(app: FastAPI):
                 await conn.execute(text(stmt))
             except Exception:
                 pass  # column already exists
+        for stmt in _NEW_CHANNEL_TABLES:
+            try:
+                await conn.execute(text(stmt))
+            except Exception:
+                pass  # table/index already exists
         # Normalize reduction_stages: re-encode rows stored as raw TEXT string
         # before the column was treated as JSON at the ORM level.
         try:
