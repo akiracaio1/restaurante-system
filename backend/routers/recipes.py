@@ -53,6 +53,44 @@ def build_response(recipe: models.Recipe) -> schemas.RecipeResponse:
 
     cost_per_portion = (total_cost / recipe.yield_portions) if recipe.yield_portions > 0 else 0.0
     cmv = (cost_per_portion / recipe.sale_price * 100) if recipe.sale_price > 0 else 0.0
+
+    channel_prices_resp = []
+    for cp in recipe.channel_prices:
+        extra_cost = 0.0
+        extra_resp = []
+        for ei in cp.extra_ingredients:
+            real_cost = ei.ingredient.real_unit_cost
+            subtotal = real_cost * ei.quantity
+            extra_cost += subtotal
+            extra_resp.append(
+                schemas.ChannelExtraIngredientResponse(
+                    id=ei.id,
+                    ingredient_id=ei.ingredient_id,
+                    ingredient_name=ei.ingredient.name,
+                    ingredient_unit=ei.ingredient.unit,
+                    quantity=ei.quantity,
+                    subtotal=round(subtotal, 4),
+                )
+            )
+        fee = (cp.channel.fee_percent / 100 * cp.sale_price) if cp.channel.fee_percent else 0.0
+        fixed = cp.channel.fixed_cost or 0.0
+        channel_total_cost = cost_per_portion + extra_cost + fee + fixed
+        channel_cmv = (channel_total_cost / cp.sale_price * 100) if cp.sale_price > 0 else 0.0
+        channel_prices_resp.append(
+            schemas.RecipeChannelPriceResponse(
+                id=cp.id,
+                channel_id=cp.channel_id,
+                channel_name=cp.channel.name,
+                fee_percent=cp.channel.fee_percent,
+                fixed_cost=cp.channel.fixed_cost,
+                sale_price=cp.sale_price,
+                extra_ingredients=extra_resp,
+                extra_cost=round(extra_cost, 4),
+                total_cost=round(channel_total_cost, 4),
+                cmv_percent=round(channel_cmv, 2),
+            )
+        )
+
     return schemas.RecipeResponse(
         id=recipe.id,
         name=recipe.name,
@@ -62,6 +100,7 @@ def build_response(recipe: models.Recipe) -> schemas.RecipeResponse:
         yield_portions=recipe.yield_portions,
         ingredients=ingredients_resp,
         sub_recipes=sub_recipes_resp,
+        channel_prices=channel_prices_resp,
         total_cost=round(total_cost, 4),
         cmv_percent=round(cmv, 2),
     )
@@ -76,6 +115,11 @@ def _eager_options():
             .selectinload(models.RecipeSubRecipe.sub_recipe)
             .selectinload(models.Recipe.recipe_ingredients)
             .selectinload(models.RecipeIngredient.ingredient),
+        selectinload(models.Recipe.channel_prices)
+            .selectinload(models.RecipeChannelPrice.channel),
+        selectinload(models.Recipe.channel_prices)
+            .selectinload(models.RecipeChannelPrice.extra_ingredients)
+            .selectinload(models.RecipeChannelIngredient.ingredient),
     ]
 
 
@@ -184,8 +228,7 @@ async def update_recipe(
         setattr(recipe, k, v)
 
     for ri in list(recipe.recipe_ingredients):
-        await db.delete(ri)
-    await db.flush()
+        recipe.recipe_ingredients.remove(ri)
 
     for ing in data.ingredients:
         ing_check = await db.execute(
@@ -196,8 +239,7 @@ async def update_recipe(
         )
         if not ing_check.scalar_one_or_none():
             raise HTTPException(404, f"Ingrediente ID {ing.ingredient_id} não encontrado")
-        db.add(models.RecipeIngredient(
-            recipe_id=recipe_id,
+        recipe.recipe_ingredients.append(models.RecipeIngredient(
             ingredient_id=ing.ingredient_id,
             quantity=ing.quantity,
         ))
@@ -297,6 +339,106 @@ async def remove_sub_recipe(
     entry = result.scalar_one_or_none()
     if not entry:
         raise HTTPException(404, "Sub-receita não encontrada")
+
+    await db.delete(entry)
+    await db.commit()
+
+
+@router.put("/{recipe_id}/canais/{channel_id}", response_model=schemas.RecipeResponse)
+async def set_channel_price(
+    recipe_id: int,
+    channel_id: int,
+    data: schemas.RecipeChannelPriceInput,
+    db: AsyncSession = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(models.Recipe).where(
+            models.Recipe.id == recipe_id,
+            models.Recipe.user_id == current_user.id,
+        )
+    )
+    if not result.scalar_one_or_none():
+        raise HTTPException(404, "Receita não encontrada")
+
+    result = await db.execute(
+        select(models.SalesChannel).where(
+            models.SalesChannel.id == channel_id,
+            models.SalesChannel.user_id == current_user.id,
+        )
+    )
+    if not result.scalar_one_or_none():
+        raise HTTPException(404, "Canal de venda não encontrado")
+
+    for ei in data.extra_ingredients:
+        ing_check = await db.execute(
+            select(models.Ingredient).where(
+                models.Ingredient.id == ei.ingredient_id,
+                models.Ingredient.user_id == current_user.id,
+            )
+        )
+        if not ing_check.scalar_one_or_none():
+            raise HTTPException(404, f"Ingrediente ID {ei.ingredient_id} não encontrado")
+
+    result = await db.execute(
+        select(models.RecipeChannelPrice)
+        .where(
+            models.RecipeChannelPrice.recipe_id == recipe_id,
+            models.RecipeChannelPrice.channel_id == channel_id,
+        )
+        .options(selectinload(models.RecipeChannelPrice.extra_ingredients))
+    )
+    channel_price = result.scalar_one_or_none()
+
+    if channel_price:
+        channel_price.sale_price = data.sale_price
+        for ei in list(channel_price.extra_ingredients):
+            channel_price.extra_ingredients.remove(ei)
+    else:
+        channel_price = models.RecipeChannelPrice(
+            recipe_id=recipe_id, channel_id=channel_id, sale_price=data.sale_price
+        )
+        db.add(channel_price)
+
+    for ei in data.extra_ingredients:
+        channel_price.extra_ingredients.append(models.RecipeChannelIngredient(
+            ingredient_id=ei.ingredient_id,
+            quantity=ei.quantity,
+        ))
+
+    await db.commit()
+
+    result = await db.execute(
+        select(models.Recipe).where(models.Recipe.id == recipe_id).options(*_eager_options())
+    )
+    return build_response(result.scalar_one())
+
+
+@router.delete("/{recipe_id}/canais/{channel_id}", status_code=204)
+async def remove_channel_price(
+    recipe_id: int,
+    channel_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(models.Recipe).where(
+            models.Recipe.id == recipe_id,
+            models.Recipe.user_id == current_user.id,
+        )
+    )
+    if not result.scalar_one_or_none():
+        raise HTTPException(404, "Receita não encontrada")
+
+    result = await db.execute(
+        select(models.RecipeChannelPrice).where(
+            models.RecipeChannelPrice.recipe_id == recipe_id,
+            models.RecipeChannelPrice.channel_id == channel_id,
+        )
+    )
+    entry = result.scalar_one_or_none()
+    if not entry:
+        raise HTTPException(404, "Preço de canal não encontrado")
 
     await db.delete(entry)
     await db.commit()

@@ -105,10 +105,64 @@ class RecipeUpdate(RecipeBase):
     ingredients: List[RecipeIngredientInput] = []
 
 
+class SalesChannelBase(BaseModel):
+    name: str
+    fee_percent: Optional[float] = None
+    fixed_cost: Optional[float] = None
+
+
+class SalesChannelCreate(SalesChannelBase):
+    pass
+
+
+class SalesChannelUpdate(SalesChannelBase):
+    pass
+
+
+class SalesChannelResponse(SalesChannelBase):
+    id: int
+    model_config = {"from_attributes": True}
+
+
+class ChannelExtraIngredientInput(BaseModel):
+    ingredient_id: int
+    quantity: float
+
+
+class ChannelExtraIngredientResponse(BaseModel):
+    id: int
+    ingredient_id: int
+    ingredient_name: str
+    ingredient_unit: str
+    quantity: float
+    subtotal: float
+    model_config = {"from_attributes": True}
+
+
+class RecipeChannelPriceInput(BaseModel):
+    sale_price: float
+    extra_ingredients: List[ChannelExtraIngredientInput] = []
+
+
+class RecipeChannelPriceResponse(BaseModel):
+    id: int
+    channel_id: int
+    channel_name: str
+    fee_percent: Optional[float] = None
+    fixed_cost: Optional[float] = None
+    sale_price: float
+    extra_ingredients: List[ChannelExtraIngredientResponse] = []
+    extra_cost: float = 0.0
+    total_cost: float = 0.0
+    cmv_percent: float = 0.0
+    model_config = {"from_attributes": True}
+
+
 class RecipeResponse(RecipeBase):
     id: int
     ingredients: List[RecipeIngredientResponse] = []
     sub_recipes: List[SubRecipeResponse] = []
+    channel_prices: List[RecipeChannelPriceResponse] = []
     total_cost: float = 0.0
     cmv_percent: float = 0.0
     model_config = {"from_attributes": True}

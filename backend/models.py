@@ -96,6 +96,9 @@ class Recipe(Base):
         back_populates="parent_recipe",
         cascade="all, delete-orphan",
     )
+    channel_prices = relationship(
+        "RecipeChannelPrice", back_populates="recipe", cascade="all, delete-orphan"
+    )
 
 
 class RecipeIngredient(Base):
@@ -120,6 +123,47 @@ class RecipeSubRecipe(Base):
 
     parent_recipe = relationship("Recipe", foreign_keys="[RecipeSubRecipe.parent_recipe_id]", back_populates="sub_recipes")
     sub_recipe = relationship("Recipe", foreign_keys="[RecipeSubRecipe.sub_recipe_id]")
+
+
+class SalesChannel(Base):
+    __tablename__ = "sales_channels"
+    __table_args__ = (UniqueConstraint("user_id", "name", name="uq_channel_user_name"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(120), nullable=False)
+    fee_percent = Column(Float, nullable=True)
+    fixed_cost = Column(Float, nullable=True)
+
+    owner = relationship("User")
+
+
+class RecipeChannelPrice(Base):
+    __tablename__ = "recipe_channel_prices"
+    __table_args__ = (UniqueConstraint("recipe_id", "channel_id", name="uq_recipe_channel"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    recipe_id = Column(Integer, ForeignKey("recipes.id", ondelete="CASCADE"), nullable=False, index=True)
+    channel_id = Column(Integer, ForeignKey("sales_channels.id", ondelete="CASCADE"), nullable=False, index=True)
+    sale_price = Column(Float, nullable=False)
+
+    recipe = relationship("Recipe", back_populates="channel_prices")
+    channel = relationship("SalesChannel")
+    extra_ingredients = relationship(
+        "RecipeChannelIngredient", back_populates="channel_price", cascade="all, delete-orphan"
+    )
+
+
+class RecipeChannelIngredient(Base):
+    __tablename__ = "recipe_channel_ingredients"
+
+    id = Column(Integer, primary_key=True, index=True)
+    recipe_channel_price_id = Column(Integer, ForeignKey("recipe_channel_prices.id", ondelete="CASCADE"), nullable=False)
+    ingredient_id = Column(Integer, ForeignKey("ingredients.id"), nullable=False)
+    quantity = Column(Float, nullable=False)
+
+    channel_price = relationship("RecipeChannelPrice", back_populates="extra_ingredients")
+    ingredient = relationship("Ingredient")
 
 
 class Purchase(Base):

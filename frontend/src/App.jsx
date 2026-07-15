@@ -8,7 +8,9 @@ import Dashboard from './pages/Dashboard'
 import IngredientesLista from './pages/IngredientesLista'
 import IngredientesForm from './pages/IngredientesForm'
 import ReceitasLista from './pages/ReceitasLista'
+import SubReceitasLista from './pages/SubReceitasLista'
 import ReceitasForm from './pages/ReceitasForm'
+import CanaisLista from './pages/CanaisLista'
 import ComprasLista from './pages/ComprasLista'
 import ComprasForm from './pages/ComprasForm'
 import EstoqueLista from './pages/EstoqueLista'
@@ -36,8 +38,10 @@ export default function App() {
                       <Route path="/ingredientes/:id/editar"        element={<IngredientesForm />} />
                       <Route path="/ingredientes/:id/historico"     element={<IngredienteHistorico />} />
                       <Route path="/receitas"                        element={<ReceitasLista />} />
+                      <Route path="/receitas/sub-receitas"           element={<SubReceitasLista />} />
                       <Route path="/receitas/nova"                   element={<ReceitasForm />} />
                       <Route path="/receitas/:id/editar"            element={<ReceitasForm />} />
+                      <Route path="/canais"                          element={<CanaisLista />} />
                       <Route path="/compras"                         element={<ComprasLista />} />
                       <Route path="/compras/nova"                    element={<ComprasForm />} />
                       <Route path="/estoque"                         element={<EstoqueLista />} />

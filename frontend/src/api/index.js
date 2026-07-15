@@ -40,6 +40,15 @@ export const receitasAPI = {
   excluir:            (id)            => api.delete(`/receitas/${id}`),
   adicionarSubReceita:(id, data)      => api.post(`/receitas/${id}/sub-receitas`, data),
   removerSubReceita:  (id, entryId)   => api.delete(`/receitas/${id}/sub-receitas/${entryId}`),
+  definirPrecoCanal:  (id, channelId, data) => api.put(`/receitas/${id}/canais/${channelId}`, data),
+  removerPrecoCanal:  (id, channelId)       => api.delete(`/receitas/${id}/canais/${channelId}`),
+}
+
+export const canaisAPI = {
+  listar:    ()         => api.get('/canais/'),
+  criar:     (data)     => api.post('/canais/', data),
+  atualizar: (id, data) => api.put(`/canais/${id}`, data),
+  excluir:   (id)       => api.delete(`/canais/${id}`),
 }
 
 export const comprasAPI = {

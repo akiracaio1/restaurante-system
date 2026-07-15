@@ -9,6 +9,7 @@ from routers import ingredients, recipes
 from routers import auth as auth_router
 from routers import purchases as purchases_router
 from routers import stock as stock_router
+from routers import channels as channels_router
 import models  # noqa: F401 — registers all models before create_all
 
 _NEW_INGREDIENT_COLS = [
@@ -68,6 +69,7 @@ app.include_router(ingredients.router, prefix="/api/ingredientes", tags=["Ingred
 app.include_router(recipes.router, prefix="/api/receitas", tags=["Receitas"])
 app.include_router(purchases_router.router, prefix="/api/compras", tags=["Compras"])
 app.include_router(stock_router.router, prefix="/api/estoque", tags=["Estoque"])
+app.include_router(channels_router.router, prefix="/api/canais", tags=["Canais de Venda"])
 
 
 @app.get("/")

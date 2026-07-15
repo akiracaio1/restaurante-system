@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { receitasAPI } from '../api'
 import RecipeCard, { CATEGORIES } from '../components/RecipeCard'
 
-export default function ReceitasLista() {
+export default function SubReceitasLista() {
   const [items, setItems]     = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError]     = useState('')
@@ -39,21 +39,16 @@ export default function ReceitasLista() {
     }
   }
 
-  const subRecipeIds = useMemo(() => {
-    const ids = new Set()
+  const subItems = useMemo(() => {
+    const subRecipeIds = new Set()
     for (const r of items) {
-      for (const sr of r.sub_recipes || []) ids.add(sr.sub_recipe_id)
+      for (const sr of r.sub_recipes || []) subRecipeIds.add(sr.sub_recipe_id)
     }
-    return ids
+    return items.filter(r => subRecipeIds.has(r.id))
   }, [items])
 
-  const mainItems = useMemo(
-    () => items.filter(r => !subRecipeIds.has(r.id)),
-    [items, subRecipeIds]
-  )
-
   const filtered = useMemo(() => {
-    let list = mainItems.filter(r =>
+    let list = subItems.filter(r =>
       r.name.toLowerCase().includes(search.toLowerCase()) &&
       (catFilter === 'todas' || r.category === catFilter)
     )
@@ -63,20 +58,19 @@ export default function ReceitasLista() {
     if (sortBy === 'preco-desc') list = [...list].sort((a, b) => b.sale_price - a.sale_price)
     if (sortBy === 'nome')       list = [...list].sort((a, b) => a.name.localeCompare(b.name))
     return list
-  }, [mainItems, search, catFilter, sortBy])
+  }, [subItems, search, catFilter, sortBy])
 
   return (
     <div>
       <div className="page-header">
         <div>
-          <h1 className="page-title">🍳 Receitas</h1>
+          <h1 className="page-title">🔗 Sub-Receitas</h1>
           <p className="page-subtitle">
-            {mainItems.length} receita{mainItems.length !== 1 ? 's' : ''} cadastrada{mainItems.length !== 1 ? 's' : ''}
+            {subItems.length} sub-receita{subItems.length !== 1 ? 's' : ''} — usadas como ingrediente em outras receitas
           </p>
         </div>
         <div style={{ display: 'flex', gap: '.6rem' }}>
-          <Link to="/canais" className="btn btn-outline">⚙️ Canais de Venda</Link>
-          <Link to="/receitas/sub-receitas" className="btn btn-outline">🔗 Sub-Receitas</Link>
+          <Link to="/receitas" className="btn btn-outline">🍳 Receitas</Link>
           <Link to="/receitas/nova" className="btn btn-primary">+ Nova Receita</Link>
         </div>
       </div>
@@ -84,14 +78,14 @@ export default function ReceitasLista() {
       {error   && <div className="alert alert-error">{error}</div>}
       {success && <div className="alert alert-success">{success}</div>}
 
-      {!loading && mainItems.length > 0 && (
+      {!loading && subItems.length > 0 && (
         <div className="toolbar">
           <div className="search-wrapper">
             <span className="search-icon">🔍</span>
             <input
               className="search-input"
               type="search"
-              placeholder="Buscar receita..."
+              placeholder="Buscar sub-receita..."
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
@@ -117,16 +111,14 @@ export default function ReceitasLista() {
       )}
 
       {loading ? (
-        <div className="loading">Carregando receitas…</div>
-      ) : mainItems.length === 0 ? (
+        <div className="loading">Carregando sub-receitas…</div>
+      ) : subItems.length === 0 ? (
         <div className="card">
           <div className="empty-state">
-            <span className="empty-icon">📋</span>
-            <p className="empty-text">Nenhuma receita cadastrada</p>
+            <span className="empty-icon">🔗</span>
+            <p className="empty-text">Nenhuma sub-receita ainda</p>
             <p className="empty-sub">
-              <Link to="/receitas/nova" style={{ color: 'var(--orange)', fontWeight: 700 }}>
-                Crie sua primeira receita
-              </Link>
+              Uma receita vira sub-receita quando é usada como ingrediente dentro de outra receita.
             </p>
           </div>
         </div>
