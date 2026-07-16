@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { receitasAPI } from '../api'
-import RecipeCard, { CATEGORIES } from '../components/RecipeCard'
+import RecipeCard, { CAT_ICON } from '../components/RecipeCard'
 
 export default function SubReceitasLista() {
   const [items, setItems]     = useState([])
@@ -47,6 +47,15 @@ export default function SubReceitasLista() {
     return items.filter(r => subRecipeIds.has(r.id))
   }, [items])
 
+  const categoryList = useMemo(() => {
+    const cats = new Set(subItems.map(r => r.category).filter(Boolean))
+    return [...cats].sort((a, b) => a.localeCompare(b))
+  }, [subItems])
+
+  useEffect(() => {
+    if (catFilter !== 'todas' && !categoryList.includes(catFilter)) setCat('todas')
+  }, [categoryList, catFilter])
+
   const filtered = useMemo(() => {
     let list = subItems.filter(r =>
       r.name.toLowerCase().includes(search.toLowerCase()) &&
@@ -79,6 +88,28 @@ export default function SubReceitasLista() {
       {success && <div className="alert alert-success">{success}</div>}
 
       {!loading && subItems.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.5rem', marginBottom: '1rem' }}>
+          <button
+            type="button"
+            className={`btn btn-sm ${catFilter === 'todas' ? 'btn-primary' : 'btn-outline'}`}
+            onClick={() => setCat('todas')}
+          >
+            Todas ({subItems.length})
+          </button>
+          {categoryList.map(c => (
+            <button
+              key={c}
+              type="button"
+              className={`btn btn-sm ${catFilter === c ? 'btn-primary' : 'btn-outline'}`}
+              onClick={() => setCat(c)}
+            >
+              {CAT_ICON[c] || '📦'} {c} ({subItems.filter(r => r.category === c).length})
+            </button>
+          ))}
+        </div>
+      )}
+
+      {!loading && subItems.length > 0 && (
         <div className="toolbar">
           <div className="search-wrapper">
             <span className="search-icon">🔍</span>
@@ -90,11 +121,6 @@ export default function SubReceitasLista() {
               onChange={e => setSearch(e.target.value)}
             />
           </div>
-          <select className="filter-select" value={catFilter} onChange={e => setCat(e.target.value)}>
-            {CATEGORIES.map(c => (
-              <option key={c} value={c}>{c === 'todas' ? 'Todas as categorias' : c}</option>
-            ))}
-          </select>
           <select className="filter-select" value={sortBy} onChange={e => setSortBy(e.target.value)}>
             <option value="nome">Ordenar: Nome</option>
             <option value="cmv-asc">CMV: menor primeiro</option>

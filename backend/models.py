@@ -125,6 +125,17 @@ class RecipeSubRecipe(Base):
     sub_recipe = relationship("Recipe", foreign_keys="[RecipeSubRecipe.sub_recipe_id]")
 
 
+class Category(Base):
+    __tablename__ = "categories"
+    __table_args__ = (UniqueConstraint("user_id", "name", name="uq_category_user_name"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(100), nullable=False)
+
+    owner = relationship("User")
+
+
 class SalesChannel(Base):
     __tablename__ = "sales_channels"
     __table_args__ = (UniqueConstraint("user_id", "name", name="uq_channel_user_name"),)

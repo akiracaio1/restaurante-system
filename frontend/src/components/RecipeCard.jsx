@@ -21,8 +21,6 @@ export const CAT_CLASS = {
   'outro':           'cat-outro',
 }
 
-export const CATEGORIES = ['todas', 'prato principal', 'sobremesa', 'bebida', 'entrada', 'petisco', 'outro']
-
 export function cmvBadgeClass(v) {
   if (v <= 30) return 'badge-green'
   if (v <= 35) return 'badge-orange'

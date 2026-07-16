@@ -11,6 +11,7 @@ import ReceitasLista from './pages/ReceitasLista'
 import SubReceitasLista from './pages/SubReceitasLista'
 import ReceitasForm from './pages/ReceitasForm'
 import CanaisLista from './pages/CanaisLista'
+import CategoriasLista from './pages/CategoriasLista'
 import ComprasLista from './pages/ComprasLista'
 import ComprasForm from './pages/ComprasForm'
 import EstoqueLista from './pages/EstoqueLista'
@@ -42,6 +43,7 @@ export default function App() {
                       <Route path="/receitas/nova"                   element={<ReceitasForm />} />
                       <Route path="/receitas/:id/editar"            element={<ReceitasForm />} />
                       <Route path="/canais"                          element={<CanaisLista />} />
+                      <Route path="/categorias"                      element={<CategoriasLista />} />
                       <Route path="/compras"                         element={<ComprasLista />} />
                       <Route path="/compras/nova"                    element={<ComprasForm />} />
                       <Route path="/estoque"                         element={<EstoqueLista />} />

@@ -1,18 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom'
-import { receitasAPI, ingredientesAPI, canaisAPI } from '../api'
-
-const CATEGORIES = [
-  'prato principal',
-  'sobremesa',
-  'bebida',
-  'entrada',
-  'petisco',
-  'outro',
-]
+import { receitasAPI, ingredientesAPI, canaisAPI, categoriasAPI } from '../api'
 
 const EMPTY_FORM = {
-  name: '', description: '', category: 'prato principal',
+  name: '', description: '', category: '',
   sale_price: '', yield_portions: '1',
 }
 
@@ -56,6 +47,8 @@ export default function ReceitasForm() {
   const [removedChannelIds, setRemovedChannelIds] = useState([])
   const [addChannelId, setAddChannelId]           = useState('')
 
+  const [categoryOptions, setCategoryOptions] = useState([])
+
   const [loading, setLoading] = useState(true)
   const [saving, setSaving]   = useState(false)
   const [error, setError]     = useState('')
@@ -63,10 +56,11 @@ export default function ReceitasForm() {
   useEffect(() => {
     async function init() {
       try {
-        const [{ data: ings }, { data: recipes }, { data: channels }] = await Promise.all([
+        const [{ data: ings }, { data: recipes }, { data: channels }, { data: categories }] = await Promise.all([
           ingredientesAPI.listar(),
           receitasAPI.listar(),
           canaisAPI.listar(),
+          categoriasAPI.listar(),
         ])
         setAvailableIngs(ings)
         if (ings.length > 0) setAddIngId(String(ings[0].id))
@@ -76,6 +70,11 @@ export default function ReceitasForm() {
         if (selectable.length > 0) setAddSubRecipeId(String(selectable[0].id))
 
         setAvailableChannels(channels)
+
+        const usedCategoryNames = new Set(recipes.map(r => r.category).filter(Boolean))
+        for (const c of categories) usedCategoryNames.add(c.name)
+        const categoryList = [...usedCategoryNames].sort((a, b) => a.localeCompare(b))
+        setCategoryOptions(categoryList)
 
         if (isEdit) {
           const { data: recipe } = await receitasAPI.buscar(id)
@@ -120,6 +119,8 @@ export default function ReceitasForm() {
           )
           setOriginalChannelIds(new Set((recipe.channel_prices || []).map(cp => cp.channel_id)))
           setRemovedChannelIds([])
+        } else if (categoryList.length > 0) {
+          setForm(prev => ({ ...prev, category: categoryList[0] }))
         }
       } catch {
         setError('Erro ao carregar dados.')
@@ -263,6 +264,8 @@ export default function ReceitasForm() {
     setError('')
     if (!form.name.trim())
       return setError('Nome da receita é obrigatório.')
+    if (!form.category)
+      return setError('Categoria é obrigatória.')
     if (!form.sale_price || isNaN(form.sale_price) || salePrice <= 0)
       return setError('Preço de venda deve ser maior que zero.')
     if (selectedIngs.length === 0)
@@ -368,10 +371,25 @@ export default function ReceitasForm() {
             </div>
 
             <div className="form-group">
-              <label htmlFor="category">Categoria *</label>
-              <select id="category" name="category" value={form.category} onChange={handle}>
-                {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
+              <label htmlFor="category">
+                Categoria *{' '}
+                <Link to="/categorias" style={{ fontSize: '.75rem', fontWeight: 600, color: 'var(--muted)' }}>
+                  ⚙️ gerenciar
+                </Link>
+              </label>
+              {categoryOptions.length === 0 ? (
+                <div className="alert alert-error" style={{ margin: 0 }}>
+                  Nenhuma categoria cadastrada.{' '}
+                  <Link to="/categorias" style={{ color: 'inherit', fontWeight: 700 }}>
+                    Cadastre uma categoria
+                  </Link>{' '}
+                  antes de criar a receita.
+                </div>
+              ) : (
+                <select id="category" name="category" value={form.category} onChange={handle}>
+                  {categoryOptions.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              )}
             </div>
 
             <div className="form-group">

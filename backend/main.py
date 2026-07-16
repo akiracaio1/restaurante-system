@@ -10,6 +10,7 @@ from routers import auth as auth_router
 from routers import purchases as purchases_router
 from routers import stock as stock_router
 from routers import channels as channels_router
+from routers import categories as categories_router
 import models  # noqa: F401 — registers all models before create_all
 
 _NEW_INGREDIENT_COLS = [
@@ -23,7 +24,7 @@ _NEW_INGREDIENT_COLS = [
     "ALTER TABLE ingredients ADD COLUMN processing_batch_size FLOAT",
 ]
 
-_NEW_CHANNEL_TABLES = [
+_NEW_TABLES = [
     """
     CREATE TABLE IF NOT EXISTS sales_channels (
         id SERIAL PRIMARY KEY,
@@ -54,6 +55,15 @@ _NEW_CHANNEL_TABLES = [
         quantity FLOAT NOT NULL
     )
     """,
+    """
+    CREATE TABLE IF NOT EXISTS categories (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name VARCHAR(100) NOT NULL,
+        CONSTRAINT uq_category_user_name UNIQUE (user_id, name)
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS ix_categories_user_id ON categories (user_id)",
 ]
 
 
@@ -73,7 +83,7 @@ async def lifespan(app: FastAPI):
         except Exception:
             pass  # column already exists
 
-    for stmt in _NEW_CHANNEL_TABLES:
+    for stmt in _NEW_TABLES:
         try:
             async with engine.begin() as conn:
                 await conn.execute(text(stmt))
@@ -119,6 +129,7 @@ app.include_router(recipes.router, prefix="/api/receitas", tags=["Receitas"])
 app.include_router(purchases_router.router, prefix="/api/compras", tags=["Compras"])
 app.include_router(stock_router.router, prefix="/api/estoque", tags=["Estoque"])
 app.include_router(channels_router.router, prefix="/api/canais", tags=["Canais de Venda"])
+app.include_router(categories_router.router, prefix="/api/categorias", tags=["Categorias"])
 
 
 @app.get("/")

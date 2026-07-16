@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { receitasAPI } from '../api'
-import RecipeCard, { CATEGORIES } from '../components/RecipeCard'
+import RecipeCard, { CAT_ICON } from '../components/RecipeCard'
 
 export default function ReceitasLista() {
   const [items, setItems]     = useState([])
@@ -52,6 +52,15 @@ export default function ReceitasLista() {
     [items, subRecipeIds]
   )
 
+  const categoryList = useMemo(() => {
+    const cats = new Set(mainItems.map(r => r.category).filter(Boolean))
+    return [...cats].sort((a, b) => a.localeCompare(b))
+  }, [mainItems])
+
+  useEffect(() => {
+    if (catFilter !== 'todas' && !categoryList.includes(catFilter)) setCat('todas')
+  }, [categoryList, catFilter])
+
   const filtered = useMemo(() => {
     let list = mainItems.filter(r =>
       r.name.toLowerCase().includes(search.toLowerCase()) &&
@@ -75,6 +84,7 @@ export default function ReceitasLista() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: '.6rem' }}>
+          <Link to="/categorias" className="btn btn-outline">🏷️ Categorias</Link>
           <Link to="/canais" className="btn btn-outline">⚙️ Canais de Venda</Link>
           <Link to="/receitas/sub-receitas" className="btn btn-outline">🔗 Sub-Receitas</Link>
           <Link to="/receitas/nova" className="btn btn-primary">+ Nova Receita</Link>
@@ -83,6 +93,28 @@ export default function ReceitasLista() {
 
       {error   && <div className="alert alert-error">{error}</div>}
       {success && <div className="alert alert-success">{success}</div>}
+
+      {!loading && mainItems.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.5rem', marginBottom: '1rem' }}>
+          <button
+            type="button"
+            className={`btn btn-sm ${catFilter === 'todas' ? 'btn-primary' : 'btn-outline'}`}
+            onClick={() => setCat('todas')}
+          >
+            Todas ({mainItems.length})
+          </button>
+          {categoryList.map(c => (
+            <button
+              key={c}
+              type="button"
+              className={`btn btn-sm ${catFilter === c ? 'btn-primary' : 'btn-outline'}`}
+              onClick={() => setCat(c)}
+            >
+              {CAT_ICON[c] || '📦'} {c} ({mainItems.filter(r => r.category === c).length})
+            </button>
+          ))}
+        </div>
+      )}
 
       {!loading && mainItems.length > 0 && (
         <div className="toolbar">
@@ -96,11 +128,6 @@ export default function ReceitasLista() {
               onChange={e => setSearch(e.target.value)}
             />
           </div>
-          <select className="filter-select" value={catFilter} onChange={e => setCat(e.target.value)}>
-            {CATEGORIES.map(c => (
-              <option key={c} value={c}>{c === 'todas' ? 'Todas as categorias' : c}</option>
-            ))}
-          </select>
           <select className="filter-select" value={sortBy} onChange={e => setSortBy(e.target.value)}>
             <option value="nome">Ordenar: Nome</option>
             <option value="cmv-asc">CMV: menor primeiro</option>

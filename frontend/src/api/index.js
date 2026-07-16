@@ -51,6 +51,13 @@ export const canaisAPI = {
   excluir:   (id)       => api.delete(`/canais/${id}`),
 }
 
+export const categoriasAPI = {
+  listar:    ()         => api.get('/categorias/'),
+  criar:     (data)     => api.post('/categorias/', data),
+  atualizar: (id, data) => api.put(`/categorias/${id}`, data),
+  excluir:   (id)       => api.delete(`/categorias/${id}`),
+}
+
 export const comprasAPI = {
   listar:    ()              => api.get('/compras/'),
   buscar:    (id)            => api.get(`/compras/${id}`),

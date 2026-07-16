@@ -105,6 +105,23 @@ class RecipeUpdate(RecipeBase):
     ingredients: List[RecipeIngredientInput] = []
 
 
+class CategoryBase(BaseModel):
+    name: str
+
+
+class CategoryCreate(CategoryBase):
+    pass
+
+
+class CategoryUpdate(CategoryBase):
+    pass
+
+
+class CategoryResponse(CategoryBase):
+    id: int
+    model_config = {"from_attributes": True}
+
+
 class SalesChannelBase(BaseModel):
     name: str
     fee_percent: Optional[float] = None
