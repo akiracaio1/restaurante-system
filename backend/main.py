@@ -61,34 +61,45 @@ _NEW_CHANNEL_TABLES = [
 async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-        for stmt in _NEW_INGREDIENT_COLS:
-            try:
-                await conn.execute(text(stmt))
-            except Exception:
-                pass  # column already exists
-        for stmt in _NEW_CHANNEL_TABLES:
-            try:
-                await conn.execute(text(stmt))
-            except Exception:
-                pass  # table/index already exists
-        # Normalize reduction_stages: re-encode rows stored as raw TEXT string
-        # before the column was treated as JSON at the ORM level.
+
+    # Each statement below runs in its own transaction: in Postgres, one
+    # failed statement (e.g. "column already exists") aborts the whole
+    # transaction, silently skipping every statement that follows it if
+    # they all shared a single connection/transaction.
+    for stmt in _NEW_INGREDIENT_COLS:
         try:
+            async with engine.begin() as conn:
+                await conn.execute(text(stmt))
+        except Exception:
+            pass  # column already exists
+
+    for stmt in _NEW_CHANNEL_TABLES:
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(text(stmt))
+        except Exception:
+            pass  # table/index already exists
+
+    # Normalize reduction_stages: re-encode rows stored as raw TEXT string
+    # before the column was treated as JSON at the ORM level.
+    try:
+        async with engine.begin() as conn:
             rows = (await conn.execute(
                 text("SELECT id, reduction_stages FROM ingredients WHERE reduction_stages IS NOT NULL")
             )).fetchall()
-            for row_id, val in rows:
-                if isinstance(val, str):
-                    try:
-                        parsed = json.loads(val)
+        for row_id, val in rows:
+            if isinstance(val, str):
+                try:
+                    parsed = json.loads(val)
+                    async with engine.begin() as conn:
                         await conn.execute(
                             text("UPDATE ingredients SET reduction_stages = :v WHERE id = :id"),
                             {"v": json.dumps(parsed), "id": row_id},
                         )
-                    except Exception:
-                        pass
-        except Exception:
-            pass
+                except Exception:
+                    pass
+    except Exception:
+        pass
     yield
 
 
