@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { estoqueAPI } from '../api'
+import { estoqueAPI, receitasAPI } from '../api'
 
 const fmtQty = (v) => Number(v).toFixed(3).replace('.', ',')
 
@@ -20,6 +20,7 @@ export default function EstoqueLista() {
   const [search, setSearch]       = useState('')
   const [adjust, setAdjust]       = useState(null) // { type: 'ingrediente'|'receita', id, label, unit }
   const [adjQty, setAdjQty]       = useState('')
+  const [adjUnit, setAdjUnit]     = useState('')
   const [adjNotes, setAdjNotes]   = useState('')
   const [adjusting, setAdjusting] = useState(false)
 
@@ -51,6 +52,7 @@ export default function EstoqueLista() {
   function openAdjustReceita(item) {
     setAdjust({ type: 'receita', id: item.recipe_id, label: item.recipe_name, unit: item.unit })
     setAdjQty(String(item.quantity))
+    setAdjUnit(item.unit)
     setAdjNotes('')
     setError('')
   }
@@ -59,11 +61,15 @@ export default function EstoqueLista() {
     e.preventDefault()
     const qty = Number(adjQty)
     if (isNaN(qty) || qty < 0) return setError('Quantidade inválida.')
+    if (adjust.type === 'receita' && !adjUnit.trim()) return setError('Unidade não pode ser vazia.')
     try {
       setAdjusting(true)
       if (adjust.type === 'ingrediente') {
         await estoqueAPI.ajustar(adjust.id, { quantity: qty, notes: adjNotes || null })
       } else {
+        if (adjUnit.trim() !== adjust.unit) {
+          await receitasAPI.atualizarUnidadeEstoque(adjust.id, adjUnit.trim())
+        }
         await estoqueAPI.ajustarReceita(adjust.id, { quantity: qty, notes: adjNotes || null })
       }
       setSuccess('Estoque ajustado com sucesso.')
@@ -129,8 +135,19 @@ export default function EstoqueLista() {
               Ajustar Estoque — {adjust.label}
             </h2>
             <form onSubmit={handleAdjust}>
+              {adjust.type === 'receita' && (
+                <div className="form-group">
+                  <label>Unidade de estoque</label>
+                  <input
+                    type="text"
+                    value={adjUnit}
+                    onChange={e => setAdjUnit(e.target.value)}
+                    placeholder="Ex: porção, unidade, bandeja"
+                  />
+                </div>
+              )}
               <div className="form-group">
-                <label>Nova quantidade ({adjust.unit})</label>
+                <label>Nova quantidade ({adjUnit || adjust.unit})</label>
                 <input
                   type="number"
                   step="0.001"

@@ -186,6 +186,10 @@ class RecipeResponse(RecipeBase):
     model_config = {"from_attributes": True}
 
 
+class RecipeStockUnitInput(BaseModel):
+    stock_unit: str
+
+
 # ── Purchases ─────────────────────────────────────────────────────────────────
 
 class PurchaseItemInput(BaseModel):

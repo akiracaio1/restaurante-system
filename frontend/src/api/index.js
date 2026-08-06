@@ -42,6 +42,7 @@ export const receitasAPI = {
   removerSubReceita:  (id, entryId)   => api.delete(`/receitas/${id}/sub-receitas/${entryId}`),
   definirPrecoCanal:  (id, channelId, data) => api.put(`/receitas/${id}/canais/${channelId}`, data),
   removerPrecoCanal:  (id, channelId)       => api.delete(`/receitas/${id}/canais/${channelId}`),
+  atualizarUnidadeEstoque: (id, stockUnit)  => api.put(`/receitas/${id}/unidade-estoque`, { stock_unit: stockUnit }),
 }
 
 export const canaisAPI = {

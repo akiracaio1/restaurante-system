@@ -274,6 +274,35 @@ async def delete_recipe(
     await db.commit()
 
 
+@router.put("/{recipe_id}/unidade-estoque", response_model=schemas.RecipeResponse)
+async def update_stock_unit(
+    recipe_id: int,
+    data: schemas.RecipeStockUnitInput,
+    db: AsyncSession = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(models.Recipe).where(
+            models.Recipe.id == recipe_id,
+            models.Recipe.user_id == current_user.id,
+        )
+    )
+    recipe = result.scalar_one_or_none()
+    if not recipe:
+        raise HTTPException(404, "Receita não encontrada")
+
+    unit = data.stock_unit.strip()
+    if not unit:
+        raise HTTPException(400, "Unidade de estoque não pode ser vazia")
+    recipe.stock_unit = unit
+    await db.commit()
+
+    result = await db.execute(
+        select(models.Recipe).where(models.Recipe.id == recipe_id).options(*_eager_options())
+    )
+    return build_response(result.scalar_one())
+
+
 @router.post("/{recipe_id}/sub-receitas", response_model=schemas.RecipeResponse, status_code=201)
 async def add_sub_recipe(
     recipe_id: int,
