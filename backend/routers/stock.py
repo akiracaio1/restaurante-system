@@ -144,3 +144,134 @@ async def adjust_stock(
         .options(selectinload(models.Stock.ingredient))
     )
     return _to_response(result.scalar_one())
+
+
+def _to_recipe_response(stock: models.RecipeStock) -> schemas.RecipeStockResponse:
+    return schemas.RecipeStockResponse(
+        id=stock.id,
+        recipe_id=stock.recipe_id,
+        recipe_name=stock.recipe.name if stock.recipe else '',
+        unit=stock.recipe.stock_unit if stock.recipe else 'porção',
+        quantity=stock.quantity,
+        updated_at=stock.updated_at,
+    )
+
+
+@router.get("/receitas/", response_model=List[schemas.RecipeStockResponse])
+async def list_recipe_stock(
+    db: AsyncSession = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    recipe_result = await db.execute(
+        select(models.Recipe)
+        .where(models.Recipe.user_id == current_user.id)
+        .order_by(models.Recipe.name)
+    )
+    recipes = recipe_result.scalars().all()
+
+    stock_result = await db.execute(
+        select(models.RecipeStock)
+        .where(models.RecipeStock.user_id == current_user.id)
+    )
+    stock_by_recipe = {s.recipe_id: s for s in stock_result.scalars().all()}
+
+    return [
+        schemas.RecipeStockResponse(
+            id=stock_by_recipe[r.id].id if r.id in stock_by_recipe else None,
+            recipe_id=r.id,
+            recipe_name=r.name,
+            unit=r.stock_unit or 'porção',
+            quantity=stock_by_recipe[r.id].quantity if r.id in stock_by_recipe else 0.0,
+            updated_at=stock_by_recipe[r.id].updated_at if r.id in stock_by_recipe else None,
+        )
+        for r in recipes
+    ]
+
+
+# /receitas/movimentacoes/ must be before /receitas/{recipe_id} to avoid routing conflicts
+@router.get("/receitas/movimentacoes/{recipe_id}", response_model=List[schemas.RecipeStockMovementResponse])
+async def list_recipe_movements(
+    recipe_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(models.RecipeStockMovement)
+        .where(
+            models.RecipeStockMovement.user_id == current_user.id,
+            models.RecipeStockMovement.recipe_id == recipe_id,
+        )
+        .options(selectinload(models.RecipeStockMovement.recipe))
+        .order_by(models.RecipeStockMovement.created_at.desc())
+    )
+    movements = result.scalars().all()
+    return [
+        schemas.RecipeStockMovementResponse(
+            id=m.id,
+            type=m.type,
+            quantity=m.quantity,
+            reason=m.reason,
+            notes=m.notes,
+            created_at=m.created_at,
+            recipe_name=m.recipe.name if m.recipe else '',
+        )
+        for m in movements
+    ]
+
+
+@router.put("/receitas/{recipe_id}", response_model=schemas.RecipeStockResponse)
+async def adjust_recipe_stock(
+    recipe_id: int,
+    data: schemas.StockAdjustInput,
+    db: AsyncSession = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    stock_result = await db.execute(
+        select(models.RecipeStock)
+        .where(
+            models.RecipeStock.user_id == current_user.id,
+            models.RecipeStock.recipe_id == recipe_id,
+        )
+    )
+    stock = stock_result.scalar_one_or_none()
+
+    if not stock:
+        recipe_result = await db.execute(
+            select(models.Recipe).where(
+                models.Recipe.id == recipe_id,
+                models.Recipe.user_id == current_user.id,
+            )
+        )
+        if not recipe_result.scalar_one_or_none():
+            raise HTTPException(404, "Receita não encontrada")
+        stock = models.RecipeStock(
+            user_id=current_user.id,
+            recipe_id=recipe_id,
+            quantity=data.quantity,
+            updated_at=datetime.utcnow(),
+        )
+        db.add(stock)
+    else:
+        stock.quantity = data.quantity
+        stock.updated_at = datetime.utcnow()
+
+    movement = models.RecipeStockMovement(
+        user_id=current_user.id,
+        recipe_id=recipe_id,
+        type='ajuste',
+        quantity=data.quantity,
+        reason='ajuste_manual',
+        notes=data.notes,
+    )
+    db.add(movement)
+    await db.commit()
+
+    result = await db.execute(
+        select(models.RecipeStock)
+        .where(
+            models.RecipeStock.user_id == current_user.id,
+            models.RecipeStock.recipe_id == recipe_id,
+        )
+        .options(selectinload(models.RecipeStock.recipe))
+    )
+    return _to_recipe_response(result.scalar_one())

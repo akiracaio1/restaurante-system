@@ -11,12 +11,14 @@ function statusInfo(qty, min) {
 }
 
 export default function EstoqueLista() {
-  const [items, setItems]         = useState([])
+  const [view, setView]           = useState('ingredientes')
+  const [ingItems, setIngItems]   = useState([])
+  const [recItems, setRecItems]   = useState([])
   const [loading, setLoading]     = useState(true)
   const [error, setError]         = useState('')
   const [success, setSuccess]     = useState('')
   const [search, setSearch]       = useState('')
-  const [adjustId, setAdjustId]   = useState(null)
+  const [adjust, setAdjust]       = useState(null) // { type: 'ingrediente'|'receita', id, label, unit }
   const [adjQty, setAdjQty]       = useState('')
   const [adjNotes, setAdjNotes]   = useState('')
   const [adjusting, setAdjusting] = useState(false)
@@ -24,8 +26,12 @@ export default function EstoqueLista() {
   async function load() {
     try {
       setLoading(true)
-      const { data } = await estoqueAPI.listar()
-      setItems(data)
+      const [{ data: ings }, { data: recs }] = await Promise.all([
+        estoqueAPI.listar(),
+        estoqueAPI.listarReceitas(),
+      ])
+      setIngItems(ings)
+      setRecItems(recs)
     } catch {
       setError('Erro ao carregar estoque.')
     } finally {
@@ -35,8 +41,15 @@ export default function EstoqueLista() {
 
   useEffect(() => { load() }, [])
 
-  function openAdjust(item) {
-    setAdjustId(item.ingredient_id)
+  function openAdjustIngrediente(item) {
+    setAdjust({ type: 'ingrediente', id: item.ingredient_id, label: item.ingredient_name, unit: item.unit })
+    setAdjQty(String(item.quantity))
+    setAdjNotes('')
+    setError('')
+  }
+
+  function openAdjustReceita(item) {
+    setAdjust({ type: 'receita', id: item.recipe_id, label: item.recipe_name, unit: item.unit })
     setAdjQty(String(item.quantity))
     setAdjNotes('')
     setError('')
@@ -48,10 +61,14 @@ export default function EstoqueLista() {
     if (isNaN(qty) || qty < 0) return setError('Quantidade inválida.')
     try {
       setAdjusting(true)
-      await estoqueAPI.ajustar(adjustId, { quantity: qty, notes: adjNotes || null })
+      if (adjust.type === 'ingrediente') {
+        await estoqueAPI.ajustar(adjust.id, { quantity: qty, notes: adjNotes || null })
+      } else {
+        await estoqueAPI.ajustarReceita(adjust.id, { quantity: qty, notes: adjNotes || null })
+      }
       setSuccess('Estoque ajustado com sucesso.')
       setTimeout(() => setSuccess(''), 3500)
-      setAdjustId(null)
+      setAdjust(null)
       await load()
     } catch (err) {
       setError(err.response?.data?.detail || 'Erro ao ajustar estoque.')
@@ -61,14 +78,15 @@ export default function EstoqueLista() {
     }
   }
 
-  const filtered = useMemo(() =>
-    items.filter(i =>
-      !search || i.ingredient_name.toLowerCase().includes(search.toLowerCase())
-    ),
-    [items, search]
-  )
+  const items = view === 'ingredientes' ? ingItems : recItems
 
-  const adjustItem = items.find(i => i.ingredient_id === adjustId)
+  const filtered = useMemo(() =>
+    items.filter(i => {
+      const name = view === 'ingredientes' ? i.ingredient_name : i.recipe_name
+      return !search || name.toLowerCase().includes(search.toLowerCase())
+    }),
+    [items, search, view]
+  )
 
   return (
     <div>
@@ -76,7 +94,7 @@ export default function EstoqueLista() {
         <div>
           <h1 className="page-title">📦 Estoque</h1>
           <p className="page-subtitle">
-            {items.length} ingrediente{items.length !== 1 ? 's' : ''} no estoque
+            {ingItems.length} ingrediente{ingItems.length !== 1 ? 's' : ''} · {recItems.length} receita{recItems.length !== 1 ? 's' : ''}
           </p>
         </div>
       </div>
@@ -84,18 +102,35 @@ export default function EstoqueLista() {
       {error   && <div className="alert alert-error">{error}</div>}
       {success && <div className="alert alert-success">{success}</div>}
 
-      {adjustId && adjustItem && (
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.5rem', marginBottom: '1rem' }}>
+        <button
+          type="button"
+          className={`btn btn-sm ${view === 'ingredientes' ? 'btn-primary' : 'btn-outline'}`}
+          onClick={() => setView('ingredientes')}
+        >
+          🥬 Ingredientes ({ingItems.length})
+        </button>
+        <button
+          type="button"
+          className={`btn btn-sm ${view === 'receitas' ? 'btn-primary' : 'btn-outline'}`}
+          onClick={() => setView('receitas')}
+        >
+          🍳 Receitas ({recItems.length})
+        </button>
+      </div>
+
+      {adjust && (
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
         }}>
           <div className="form-card" style={{ maxWidth: '420px', width: '100%', margin: '1rem' }}>
             <h2 style={{ marginBottom: '1rem', fontSize: '1.1rem' }}>
-              Ajustar Estoque — {adjustItem.ingredient_name}
+              Ajustar Estoque — {adjust.label}
             </h2>
             <form onSubmit={handleAdjust}>
               <div className="form-group">
-                <label>Nova quantidade ({adjustItem.unit})</label>
+                <label>Nova quantidade ({adjust.unit})</label>
                 <input
                   type="number"
                   step="0.001"
@@ -118,7 +153,7 @@ export default function EstoqueLista() {
                 <button type="submit" className="btn btn-primary" disabled={adjusting}>
                   {adjusting ? '⏳ Salvando…' : '✓ Salvar'}
                 </button>
-                <button type="button" className="btn btn-ghost" onClick={() => setAdjustId(null)}>
+                <button type="button" className="btn btn-ghost" onClick={() => setAdjust(null)}>
                   Cancelar
                 </button>
               </div>
@@ -134,7 +169,7 @@ export default function EstoqueLista() {
             <input
               className="search-input"
               type="search"
-              placeholder="Buscar ingrediente..."
+              placeholder={view === 'ingredientes' ? 'Buscar ingrediente...' : 'Buscar receita...'}
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
@@ -153,11 +188,25 @@ export default function EstoqueLista() {
         <div className="card">
           <div className="empty-state">
             <span className="empty-icon">📦</span>
-            <p className="empty-text">Nenhum item em estoque</p>
-            <p className="empty-sub">Registre uma compra para inicializar o estoque.</p>
+            <p className="empty-text">
+              {view === 'ingredientes' ? 'Nenhum ingrediente em estoque' : 'Nenhuma receita cadastrada'}
+            </p>
+            <p className="empty-sub">
+              {view === 'ingredientes'
+                ? 'Registre uma compra para inicializar o estoque.'
+                : 'Cadastre receitas para poder contar o estoque de produtos prontos.'}
+            </p>
           </div>
         </div>
-      ) : (
+      ) : filtered.length === 0 ? (
+        <div className="card">
+          <div className="empty-state">
+            <span className="empty-icon">🔍</span>
+            <p className="empty-text">Nenhum resultado</p>
+            <p className="empty-sub">Tente outro termo de busca.</p>
+          </div>
+        </div>
+      ) : view === 'ingredientes' ? (
         <div className="card" style={{ padding: 0, overflow: 'auto' }}>
           <table className="ing-table" style={{ margin: 0 }}>
             <thead>
@@ -181,13 +230,40 @@ export default function EstoqueLista() {
                     <td style={{ color: 'var(--muted)' }}>{fmtQty(item.min_stock)}</td>
                     <td><span className={`badge ${cls}`}>{label}</span></td>
                     <td>
-                      <button className="btn btn-sm btn-outline" onClick={() => openAdjust(item)}>
+                      <button className="btn btn-sm btn-outline" onClick={() => openAdjustIngrediente(item)}>
                         Ajustar
                       </button>
                     </td>
                   </tr>
                 )
               })}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="card" style={{ padding: 0, overflow: 'auto' }}>
+          <table className="ing-table" style={{ margin: 0 }}>
+            <thead>
+              <tr>
+                <th>Receita</th>
+                <th>Unidade</th>
+                <th>Estoque Atual</th>
+                <th>Ação</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(item => (
+                <tr key={item.recipe_id}>
+                  <td style={{ fontWeight: 600 }}>{item.recipe_name}</td>
+                  <td>{item.unit}</td>
+                  <td style={{ fontWeight: 700 }}>{fmtQty(item.quantity)}</td>
+                  <td>
+                    <button className="btn btn-sm btn-outline" onClick={() => openAdjustReceita(item)}>
+                      Ajustar
+                    </button>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>

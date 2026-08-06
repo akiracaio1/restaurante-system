@@ -95,6 +95,7 @@ class RecipeBase(BaseModel):
     category: str
     sale_price: float
     yield_portions: int = 1
+    stock_unit: str = "porção"
 
 
 class RecipeCreate(RecipeBase):
@@ -270,4 +271,25 @@ class StockMovementResponse(BaseModel):
     notes: Optional[str] = None
     created_at: datetime
     ingredient_name: str
+    model_config = {"from_attributes": True}
+
+
+class RecipeStockResponse(BaseModel):
+    id: Optional[int] = None
+    recipe_id: int
+    recipe_name: str
+    unit: str
+    quantity: float
+    updated_at: Optional[datetime] = None
+    model_config = {"from_attributes": True}
+
+
+class RecipeStockMovementResponse(BaseModel):
+    id: int
+    type: str
+    quantity: float
+    reason: str
+    notes: Optional[str] = None
+    created_at: datetime
+    recipe_name: str
     model_config = {"from_attributes": True}

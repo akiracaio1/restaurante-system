@@ -13,7 +13,7 @@ from routers import channels as channels_router
 from routers import categories as categories_router
 import models  # noqa: F401 — registers all models before create_all
 
-_NEW_INGREDIENT_COLS = [
+_NEW_COLUMNS = [
     "ALTER TABLE ingredients ADD COLUMN purchase_unit VARCHAR(50)",
     "ALTER TABLE ingredients ADD COLUMN purchase_quantity FLOAT",
     "ALTER TABLE ingredients ADD COLUMN purchase_cost FLOAT",
@@ -22,6 +22,7 @@ _NEW_INGREDIENT_COLS = [
     "ALTER TABLE ingredients ADD COLUMN processing_cost_per_unit FLOAT",
     "ALTER TABLE ingredients ADD COLUMN processing_cost_per_batch FLOAT",
     "ALTER TABLE ingredients ADD COLUMN processing_batch_size FLOAT",
+    "ALTER TABLE recipes ADD COLUMN stock_unit VARCHAR(30) DEFAULT 'porção'",
 ]
 
 _NEW_TABLES = [
@@ -64,6 +65,30 @@ _NEW_TABLES = [
     )
     """,
     "CREATE INDEX IF NOT EXISTS ix_categories_user_id ON categories (user_id)",
+    """
+    CREATE TABLE IF NOT EXISTS recipe_stock (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        recipe_id INTEGER NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
+        quantity FLOAT NOT NULL DEFAULT 0.0,
+        updated_at TIMESTAMP,
+        CONSTRAINT uq_recipe_stock_user_recipe UNIQUE (user_id, recipe_id)
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS ix_recipe_stock_user_id ON recipe_stock (user_id)",
+    """
+    CREATE TABLE IF NOT EXISTS recipe_stock_movements (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        recipe_id INTEGER NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
+        type VARCHAR(20) NOT NULL,
+        quantity FLOAT NOT NULL,
+        reason VARCHAR(30) NOT NULL,
+        notes TEXT,
+        created_at TIMESTAMP
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS ix_recipe_stock_movements_user_id ON recipe_stock_movements (user_id)",
 ]
 
 
@@ -76,7 +101,7 @@ async def lifespan(app: FastAPI):
     # failed statement (e.g. "column already exists") aborts the whole
     # transaction, silently skipping every statement that follows it if
     # they all shared a single connection/transaction.
-    for stmt in _NEW_INGREDIENT_COLS:
+    for stmt in _NEW_COLUMNS:
         try:
             async with engine.begin() as conn:
                 await conn.execute(text(stmt))

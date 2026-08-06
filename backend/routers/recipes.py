@@ -98,6 +98,7 @@ def build_response(recipe: models.Recipe) -> schemas.RecipeResponse:
         category=recipe.category,
         sale_price=recipe.sale_price,
         yield_portions=recipe.yield_portions,
+        stock_unit=recipe.stock_unit or "porção",
         ingredients=ingredients_resp,
         sub_recipes=sub_recipes_resp,
         channel_prices=channel_prices_resp,

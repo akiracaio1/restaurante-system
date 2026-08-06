@@ -4,7 +4,7 @@ import { receitasAPI, ingredientesAPI, canaisAPI, categoriasAPI } from '../api'
 
 const EMPTY_FORM = {
   name: '', description: '', category: '',
-  sale_price: '', yield_portions: '1',
+  sale_price: '', yield_portions: '1', stock_unit: 'porção',
 }
 
 const fmt    = (v) => `R$ ${Number(v).toFixed(2).replace('.', ',')}`
@@ -84,6 +84,7 @@ export default function ReceitasForm() {
             category:       recipe.category,
             sale_price:     String(recipe.sale_price),
             yield_portions: String(recipe.yield_portions),
+            stock_unit:     recipe.stock_unit || 'porção',
           })
           setSelectedIngs(
             recipe.ingredients.map(ri => ({
@@ -279,6 +280,7 @@ export default function ReceitasForm() {
       category:       form.category,
       sale_price:     salePrice,
       yield_portions: portions,
+      stock_unit:     form.stock_unit.trim() || 'porção',
       ingredients:    selectedIngs.map(si => ({
         ingredient_id: si.ingredient_id,
         quantity:      si.quantity,
@@ -417,6 +419,17 @@ export default function ReceitasForm() {
                 min="1"
                 value={form.yield_portions}
                 onChange={handle}
+              />
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="stock_unit">Unidade de Estoque</label>
+              <input
+                id="stock_unit"
+                name="stock_unit"
+                value={form.stock_unit}
+                onChange={handle}
+                placeholder="Ex: porção, unidade, bandeja"
               />
             </div>
           </div>
