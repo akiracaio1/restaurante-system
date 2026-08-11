@@ -205,6 +205,8 @@ class PurchaseCreate(BaseModel):
     supplier: Optional[str] = None
     location: Optional[str] = None
     notes: Optional[str] = None
+    tax: float = 0.0
+    freight: float = 0.0
     items: List[PurchaseItemInput] = []
 
 
@@ -215,6 +217,7 @@ class PurchaseItemResponse(BaseModel):
     quantity: float
     unit: str
     total_price: float
+    allocated_extra: float = 0.0
     unit_cost: float
     previous_unit_cost: Optional[float] = None
     notes: Optional[str] = None
@@ -228,6 +231,7 @@ class PurchaseItemHistoryResponse(BaseModel):
     quantity: float
     unit: str
     total_price: float
+    allocated_extra: float = 0.0
     unit_cost: float
     previous_unit_cost: Optional[float] = None
     notes: Optional[str] = None
@@ -244,7 +248,10 @@ class PurchaseResponse(BaseModel):
     location: Optional[str] = None
     notes: Optional[str] = None
     created_at: datetime
+    tax: float = 0.0
+    freight: float = 0.0
     items: List[PurchaseItemResponse] = []
+    subtotal: float = 0.0
     total: float = 0.0
     model_config = {"from_attributes": True}
 

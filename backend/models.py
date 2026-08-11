@@ -187,6 +187,8 @@ class Purchase(Base):
     supplier = Column(String(200), nullable=True)
     location = Column(String(200), nullable=True)
     notes = Column(Text, nullable=True)
+    tax = Column(Float, nullable=False, default=0.0)
+    freight = Column(Float, nullable=False, default=0.0)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     owner = relationship("User", back_populates="purchases")
@@ -202,6 +204,7 @@ class PurchaseItem(Base):
     quantity = Column(Float, nullable=False)
     unit = Column(String(20), nullable=False)
     total_price = Column(Float, nullable=False)
+    allocated_extra = Column(Float, nullable=False, default=0.0)
     unit_cost = Column(Float, nullable=False)
     previous_unit_cost = Column(Float, nullable=True)
     notes = Column(Text, nullable=True)

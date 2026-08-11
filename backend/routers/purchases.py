@@ -35,6 +35,7 @@ def _item_to_response(item: models.PurchaseItem) -> schemas.PurchaseItemResponse
         quantity=item.quantity,
         unit=item.unit,
         total_price=item.total_price,
+        allocated_extra=item.allocated_extra,
         unit_cost=item.unit_cost,
         previous_unit_cost=item.previous_unit_cost,
         notes=item.notes,
@@ -43,7 +44,7 @@ def _item_to_response(item: models.PurchaseItem) -> schemas.PurchaseItemResponse
 
 def _to_response(purchase: models.Purchase) -> schemas.PurchaseResponse:
     items = [_item_to_response(i) for i in purchase.items]
-    total = sum(i.total_price for i in purchase.items)
+    subtotal = sum(i.total_price for i in purchase.items)
     return schemas.PurchaseResponse(
         id=purchase.id,
         date=purchase.date,
@@ -51,8 +52,11 @@ def _to_response(purchase: models.Purchase) -> schemas.PurchaseResponse:
         location=purchase.location,
         notes=purchase.notes,
         created_at=purchase.created_at,
+        tax=purchase.tax or 0.0,
+        freight=purchase.freight or 0.0,
         items=items,
-        total=total,
+        subtotal=subtotal,
+        total=subtotal + (purchase.tax or 0.0) + (purchase.freight or 0.0),
     )
 
 
@@ -87,9 +91,16 @@ async def create_purchase(
         supplier=data.supplier,
         location=data.location,
         notes=data.notes,
+        tax=data.tax or 0.0,
+        freight=data.freight or 0.0,
     )
     db.add(purchase)
     await db.flush()
+
+    # Imposto e frete são diluídos no custo de cada item, proporcionalmente
+    # ao valor de cada um dentro da compra (rateio por valor).
+    subtotal = sum(i.total_price for i in data.items)
+    extra_pool = (data.tax or 0.0) + (data.freight or 0.0)
 
     for item_data in data.items:
         ing_result = await db.execute(
@@ -102,8 +113,12 @@ async def create_purchase(
         if not ingredient:
             raise HTTPException(404, f"Ingrediente {item_data.ingredient_id} não encontrado")
 
+        ratio = (item_data.total_price / subtotal) if subtotal > 0 else (1 / len(data.items))
+        allocated_extra = ratio * extra_pool
+        effective_price = item_data.total_price + allocated_extra
+
         qty_base = convert_to_base(item_data.quantity, item_data.unit, ingredient.unit)
-        unit_cost = item_data.total_price / qty_base
+        unit_cost = effective_price / qty_base
         previous_unit_cost = ingredient.unit_cost
 
         item = models.PurchaseItem(
@@ -112,6 +127,7 @@ async def create_purchase(
             quantity=item_data.quantity,
             unit=item_data.unit,
             total_price=item_data.total_price,
+            allocated_extra=allocated_extra,
             unit_cost=unit_cost,
             previous_unit_cost=previous_unit_cost,
             notes=item_data.notes,

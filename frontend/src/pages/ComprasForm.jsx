@@ -21,7 +21,7 @@ function today() {
 export default function ComprasForm() {
   const navigate = useNavigate()
 
-  const [form, setForm]           = useState({ date: today(), supplier: '', notes: '' })
+  const [form, setForm]           = useState({ date: today(), supplier: '', notes: '', tax: '', freight: '' })
   const [ingredients, setIngredients] = useState([])
   const [items, setItems]         = useState([])
   const [addIngId, setAddIngId]   = useState('')
@@ -98,6 +98,8 @@ export default function ComprasForm() {
       date: form.date,
       supplier: form.supplier.trim() || null,
       notes: form.notes.trim() || null,
+      tax: Number(form.tax) || 0,
+      freight: Number(form.freight) || 0,
       items: items.map(i => ({
         ingredient_id: i.ingredient_id,
         quantity: i.quantity,
@@ -131,7 +133,17 @@ export default function ComprasForm() {
       conversionNote = `${qty} ${addUnit} = ${qtyBase}${selectedIng.unit}`
     }
   }
-  const grandTotal = items.reduce((s, i) => s + i.total_price, 0)
+  const subtotal    = items.reduce((s, i) => s + i.total_price, 0)
+  const taxVal      = Number(form.tax) || 0
+  const freightVal  = Number(form.freight) || 0
+  const extraPool   = taxVal + freightVal
+  const grandTotal  = subtotal + extraPool
+
+  function dilutedUnitCost(item) {
+    const ratio = subtotal > 0 ? item.total_price / subtotal : 1 / items.length
+    const allocated = ratio * extraPool
+    return (item.total_price + allocated) / item.qtyBase
+  }
 
   return (
     <div>
@@ -158,11 +170,30 @@ export default function ComprasForm() {
               <label htmlFor="supplier">Fornecedor</label>
               <input id="supplier" name="supplier" value={form.supplier} onChange={handle} placeholder="Nome do fornecedor" />
             </div>
+            <div className="form-group">
+              <label htmlFor="tax">Imposto (R$)</label>
+              <input
+                id="tax" name="tax" type="number" step="0.01" min="0"
+                value={form.tax} onChange={handle} placeholder="0,00"
+              />
+            </div>
+            <div className="form-group">
+              <label htmlFor="freight">Frete (R$)</label>
+              <input
+                id="freight" name="freight" type="number" step="0.01" min="0"
+                value={form.freight} onChange={handle} placeholder="0,00"
+              />
+            </div>
             <div className="form-group full">
               <label htmlFor="notes">Observações</label>
               <textarea id="notes" name="notes" value={form.notes} onChange={handle} rows={2} placeholder="Observações opcionais…" />
             </div>
           </div>
+          {(Number(form.tax) > 0 || Number(form.freight) > 0) && (
+            <div className="alert" style={{ background: 'var(--surface)', color: 'var(--muted)', border: '1px solid var(--border)', marginBottom: '1rem', fontSize: '.84rem' }}>
+              Imposto e frete são diluídos no custo de cada item, proporcionalmente ao valor de cada um dentro da compra.
+            </div>
+          )}
 
           <p className="section-title">Itens da Compra</p>
 
@@ -248,31 +279,40 @@ export default function ComprasForm() {
                       <th>Qtd</th>
                       <th>Unidade</th>
                       <th>Total</th>
+                      {extraPool > 0 && <th>+ Imposto/Frete</th>}
                       <th>Custo Novo</th>
                       <th>Custo Anterior</th>
                       <th></th>
                     </tr>
                   </thead>
                   <tbody>
-                    {items.map(item => (
-                      <tr key={item.ingredient_id}>
-                        <td style={{ fontWeight: 600 }}>{item.ing.name}</td>
-                        <td>{item.quantity}</td>
-                        <td>{item.unit}</td>
-                        <td>{fmt(item.total_price, 2)}</td>
-                        <td style={{ color: 'var(--orange)', fontWeight: 600 }}>{fmt(item.unit_cost)}/{item.ing.unit}</td>
-                        <td style={{ color: 'var(--muted)' }}>{fmt(item.ing.unit_cost)}/{item.ing.unit}</td>
-                        <td>
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-danger btn-icon-only"
-                            onClick={() => removeItem(item.ingredient_id)}
-                          >
-                            ✕
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                    {items.map(item => {
+                      const ratio = subtotal > 0 ? item.total_price / subtotal : 1 / items.length
+                      const allocated = ratio * extraPool
+                      const diluted = dilutedUnitCost(item)
+                      return (
+                        <tr key={item.ingredient_id}>
+                          <td style={{ fontWeight: 600 }}>{item.ing.name}</td>
+                          <td>{item.quantity}</td>
+                          <td>{item.unit}</td>
+                          <td>{fmt(item.total_price, 2)}</td>
+                          {extraPool > 0 && (
+                            <td style={{ color: 'var(--muted)' }}>+ {fmt(allocated, 2)}</td>
+                          )}
+                          <td style={{ color: 'var(--orange)', fontWeight: 600 }}>{fmt(diluted)}/{item.ing.unit}</td>
+                          <td style={{ color: 'var(--muted)' }}>{fmt(item.ing.unit_cost)}/{item.ing.unit}</td>
+                          <td>
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-danger btn-icon-only"
+                              onClick={() => removeItem(item.ingredient_id)}
+                            >
+                              ✕
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               )}
@@ -285,6 +325,22 @@ export default function ComprasForm() {
                       <span className="cost-label">Itens</span>
                       <span className="cost-value">{items.length}</span>
                     </div>
+                    <div className="cost-item">
+                      <span className="cost-label">Subtotal</span>
+                      <span className="cost-value">{fmt(subtotal, 2)}</span>
+                    </div>
+                    {taxVal > 0 && (
+                      <div className="cost-item">
+                        <span className="cost-label">Imposto</span>
+                        <span className="cost-value">{fmt(taxVal, 2)}</span>
+                      </div>
+                    )}
+                    {freightVal > 0 && (
+                      <div className="cost-item">
+                        <span className="cost-label">Frete</span>
+                        <span className="cost-value">{fmt(freightVal, 2)}</span>
+                      </div>
+                    )}
                     <div className="cost-item">
                       <span className="cost-label">Total Gasto</span>
                       <span className="cost-value">{fmt(grandTotal, 2)}</span>

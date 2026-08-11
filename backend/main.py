@@ -23,6 +23,9 @@ _NEW_COLUMNS = [
     "ALTER TABLE ingredients ADD COLUMN processing_cost_per_batch FLOAT",
     "ALTER TABLE ingredients ADD COLUMN processing_batch_size FLOAT",
     "ALTER TABLE recipes ADD COLUMN stock_unit VARCHAR(30) DEFAULT 'porção'",
+    "ALTER TABLE purchases ADD COLUMN tax FLOAT DEFAULT 0.0",
+    "ALTER TABLE purchases ADD COLUMN freight FLOAT DEFAULT 0.0",
+    "ALTER TABLE purchase_items ADD COLUMN allocated_extra FLOAT DEFAULT 0.0",
 ]
 
 _NEW_TABLES = [
