@@ -131,12 +131,23 @@ async def delete_ingredient(
     obj = result.scalar_one_or_none()
     if not obj:
         raise HTTPException(404, "Ingrediente não encontrado")
-    in_use = await db.execute(
-        select(models.RecipeIngredient).where(
-            models.RecipeIngredient.ingredient_id == ingredient_id
+
+    in_use_checks = [
+        (models.RecipeIngredient, "está sendo usado em uma ou mais receitas"),
+        (models.RecipeChannelIngredient, "está sendo usado como custo extra em uma ou mais modalidades de venda"),
+        (models.PurchaseItem, "possui compras registradas no histórico"),
+        (models.Stock, "possui estoque registrado"),
+        (models.StockMovement, "possui movimentações de estoque registradas"),
+    ]
+    for model_cls, reason in in_use_checks:
+        check = await db.execute(
+            select(model_cls).where(model_cls.ingredient_id == ingredient_id).limit(1)
         )
-    )
-    if in_use.scalar_one_or_none():
-        raise HTTPException(400, "Ingrediente está sendo usado em uma ou mais receitas")
+        if check.scalar_one_or_none():
+            raise HTTPException(
+                400,
+                f"Ingrediente não pode ser excluído: {reason}. Remova essas referências primeiro.",
+            )
+
     await db.delete(obj)
     await db.commit()
