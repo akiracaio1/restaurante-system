@@ -178,6 +178,23 @@ class RecipeChannelIngredient(Base):
     ingredient = relationship("Ingredient")
 
 
+class Supplier(Base):
+    __tablename__ = "suppliers"
+    __table_args__ = (UniqueConstraint("user_id", "name", name="uq_supplier_user_name"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(200), nullable=False)
+    cnpj = Column(String(30), nullable=True)
+    phone = Column(String(30), nullable=True)
+    email = Column(String(200), nullable=True)
+    contact_name = Column(String(200), nullable=True)
+    address = Column(Text, nullable=True)
+    notes = Column(Text, nullable=True)
+
+    owner = relationship("User")
+
+
 class Purchase(Base):
     __tablename__ = "purchases"
 
@@ -185,6 +202,7 @@ class Purchase(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     date = Column(Date, nullable=False)
     supplier = Column(String(200), nullable=True)
+    supplier_id = Column(Integer, ForeignKey("suppliers.id", ondelete="SET NULL"), nullable=True, index=True)
     location = Column(String(200), nullable=True)
     notes = Column(Text, nullable=True)
     tax = Column(Float, nullable=False, default=0.0)
@@ -193,6 +211,7 @@ class Purchase(Base):
 
     owner = relationship("User", back_populates="purchases")
     items = relationship("PurchaseItem", back_populates="purchase", cascade="all, delete-orphan")
+    supplier_entity = relationship("Supplier")
 
 
 class PurchaseItem(Base):

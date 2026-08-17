@@ -190,6 +190,36 @@ class RecipeStockUnitInput(BaseModel):
     stock_unit: str
 
 
+# ── Suppliers ─────────────────────────────────────────────────────────────────
+
+class SupplierBase(BaseModel):
+    name: str
+    cnpj: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    contact_name: Optional[str] = None
+    address: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class SupplierCreate(SupplierBase):
+    pass
+
+
+class SupplierUpdate(SupplierBase):
+    pass
+
+
+class SupplierResponse(SupplierBase):
+    id: int
+    model_config = {"from_attributes": True}
+
+
+class SupplierWithStatsResponse(SupplierResponse):
+    purchase_count: int = 0
+    total_spent: float = 0.0
+
+
 # ── Purchases ─────────────────────────────────────────────────────────────────
 
 class PurchaseItemInput(BaseModel):
@@ -203,6 +233,7 @@ class PurchaseItemInput(BaseModel):
 class PurchaseCreate(BaseModel):
     date: date
     supplier: Optional[str] = None
+    supplier_id: Optional[int] = None
     location: Optional[str] = None
     notes: Optional[str] = None
     tax: float = 0.0
@@ -237,6 +268,7 @@ class PurchaseItemHistoryResponse(BaseModel):
     notes: Optional[str] = None
     purchase_date: date
     supplier: Optional[str] = None
+    supplier_id: Optional[int] = None
     location: Optional[str] = None
     model_config = {"from_attributes": True}
 
@@ -245,6 +277,7 @@ class PurchaseResponse(BaseModel):
     id: int
     date: date
     supplier: Optional[str] = None
+    supplier_id: Optional[int] = None
     location: Optional[str] = None
     notes: Optional[str] = None
     created_at: datetime

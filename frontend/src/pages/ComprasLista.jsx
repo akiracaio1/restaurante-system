@@ -60,7 +60,10 @@ export default function ComprasLista() {
             {items.length} nota{items.length !== 1 ? 's' : ''} de compra registrada{items.length !== 1 ? 's' : ''}
           </p>
         </div>
-        <Link to="/compras/nova" className="btn btn-primary">+ Nova Compra</Link>
+        <div style={{ display: 'flex', gap: '.6rem' }}>
+          <Link to="/fornecedores" className="btn btn-outline">🚚 Fornecedores</Link>
+          <Link to="/compras/nova" className="btn btn-primary">+ Nova Compra</Link>
+        </div>
       </div>
 
       {error   && <div className="alert alert-error">{error}</div>}

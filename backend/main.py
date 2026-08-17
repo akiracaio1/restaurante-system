@@ -11,6 +11,7 @@ from routers import purchases as purchases_router
 from routers import stock as stock_router
 from routers import channels as channels_router
 from routers import categories as categories_router
+from routers import suppliers as suppliers_router
 import models  # noqa: F401 — registers all models before create_all
 
 _NEW_COLUMNS = [
@@ -29,6 +30,21 @@ _NEW_COLUMNS = [
 ]
 
 _NEW_TABLES = [
+    """
+    CREATE TABLE IF NOT EXISTS suppliers (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name VARCHAR(200) NOT NULL,
+        cnpj VARCHAR(30),
+        phone VARCHAR(30),
+        email VARCHAR(200),
+        contact_name VARCHAR(200),
+        address TEXT,
+        notes TEXT,
+        CONSTRAINT uq_supplier_user_name UNIQUE (user_id, name)
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS ix_suppliers_user_id ON suppliers (user_id)",
     """
     CREATE TABLE IF NOT EXISTS sales_channels (
         id SERIAL PRIMARY KEY,
@@ -92,6 +108,9 @@ _NEW_TABLES = [
     )
     """,
     "CREATE INDEX IF NOT EXISTS ix_recipe_stock_movements_user_id ON recipe_stock_movements (user_id)",
+    # depende da tabela suppliers criada acima nesta mesma lista
+    "ALTER TABLE purchases ADD COLUMN supplier_id INTEGER REFERENCES suppliers(id) ON DELETE SET NULL",
+    "CREATE INDEX IF NOT EXISTS ix_purchases_supplier_id ON purchases (supplier_id)",
 ]
 
 
@@ -158,6 +177,7 @@ app.include_router(purchases_router.router, prefix="/api/compras", tags=["Compra
 app.include_router(stock_router.router, prefix="/api/estoque", tags=["Estoque"])
 app.include_router(channels_router.router, prefix="/api/canais", tags=["Canais de Venda"])
 app.include_router(categories_router.router, prefix="/api/categorias", tags=["Categorias"])
+app.include_router(suppliers_router.router, prefix="/api/fornecedores", tags=["Fornecedores"])
 
 
 @app.get("/")

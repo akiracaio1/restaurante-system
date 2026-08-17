@@ -14,6 +14,8 @@ import CanaisLista from './pages/CanaisLista'
 import CategoriasLista from './pages/CategoriasLista'
 import ComprasLista from './pages/ComprasLista'
 import ComprasForm from './pages/ComprasForm'
+import FornecedoresLista from './pages/FornecedoresLista'
+import FornecedorDetalhe from './pages/FornecedorDetalhe'
 import EstoqueLista from './pages/EstoqueLista'
 import IngredienteHistorico from './pages/IngredienteHistorico'
 
@@ -46,6 +48,8 @@ export default function App() {
                       <Route path="/categorias"                      element={<CategoriasLista />} />
                       <Route path="/compras"                         element={<ComprasLista />} />
                       <Route path="/compras/nova"                    element={<ComprasForm />} />
+                      <Route path="/fornecedores"                    element={<FornecedoresLista />} />
+                      <Route path="/fornecedores/:id"                element={<FornecedorDetalhe />} />
                       <Route path="/estoque"                         element={<EstoqueLista />} />
                       <Route path="*"                                element={<Navigate to="/" replace />} />
                     </Routes>

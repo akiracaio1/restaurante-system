@@ -45,10 +45,12 @@ def _item_to_response(item: models.PurchaseItem) -> schemas.PurchaseItemResponse
 def _to_response(purchase: models.Purchase) -> schemas.PurchaseResponse:
     items = [_item_to_response(i) for i in purchase.items]
     subtotal = sum(i.total_price for i in purchase.items)
+    supplier_name = purchase.supplier_entity.name if purchase.supplier_entity else purchase.supplier
     return schemas.PurchaseResponse(
         id=purchase.id,
         date=purchase.date,
-        supplier=purchase.supplier,
+        supplier=supplier_name,
+        supplier_id=purchase.supplier_id,
         location=purchase.location,
         notes=purchase.notes,
         created_at=purchase.created_at,
@@ -69,7 +71,8 @@ async def list_purchases(
         select(models.Purchase)
         .where(models.Purchase.user_id == current_user.id)
         .options(
-            selectinload(models.Purchase.items).selectinload(models.PurchaseItem.ingredient)
+            selectinload(models.Purchase.items).selectinload(models.PurchaseItem.ingredient),
+            selectinload(models.Purchase.supplier_entity),
         )
         .order_by(models.Purchase.date.desc())
     )
@@ -85,10 +88,26 @@ async def create_purchase(
     if not data.items:
         raise HTTPException(400, "A compra deve ter pelo menos um item")
 
+    supplier_name = data.supplier
+    supplier_id = None
+    if data.supplier_id is not None:
+        supplier_result = await db.execute(
+            select(models.Supplier).where(
+                models.Supplier.id == data.supplier_id,
+                models.Supplier.user_id == current_user.id,
+            )
+        )
+        supplier = supplier_result.scalar_one_or_none()
+        if not supplier:
+            raise HTTPException(404, "Fornecedor não encontrado")
+        supplier_id = supplier.id
+        supplier_name = supplier.name  # fallback exibido se o fornecedor for excluído depois (supplier_id vira NULL)
+
     purchase = models.Purchase(
         user_id=current_user.id,
         date=data.date,
-        supplier=data.supplier,
+        supplier=supplier_name,
+        supplier_id=supplier_id,
         location=data.location,
         notes=data.notes,
         tax=data.tax or 0.0,
@@ -173,7 +192,8 @@ async def create_purchase(
         select(models.Purchase)
         .where(models.Purchase.id == purchase.id)
         .options(
-            selectinload(models.Purchase.items).selectinload(models.PurchaseItem.ingredient)
+            selectinload(models.Purchase.items).selectinload(models.PurchaseItem.ingredient),
+            selectinload(models.Purchase.supplier_entity),
         )
     )
     return _to_response(result.scalar_one())
@@ -195,7 +215,7 @@ async def ingredient_purchase_history(
         )
         .options(
             selectinload(models.PurchaseItem.ingredient),
-            selectinload(models.PurchaseItem.purchase),
+            selectinload(models.PurchaseItem.purchase).selectinload(models.Purchase.supplier_entity),
         )
         .order_by(models.Purchase.date.asc())
     )
@@ -208,11 +228,13 @@ async def ingredient_purchase_history(
             quantity=i.quantity,
             unit=i.unit,
             total_price=i.total_price,
+            allocated_extra=i.allocated_extra,
             unit_cost=i.unit_cost,
             previous_unit_cost=i.previous_unit_cost,
             notes=i.notes,
             purchase_date=i.purchase.date,
-            supplier=i.purchase.supplier,
+            supplier=i.purchase.supplier_entity.name if i.purchase.supplier_entity else i.purchase.supplier,
+            supplier_id=i.purchase.supplier_id,
             location=i.purchase.location,
         )
         for i in items
@@ -232,7 +254,8 @@ async def get_purchase(
             models.Purchase.user_id == current_user.id,
         )
         .options(
-            selectinload(models.Purchase.items).selectinload(models.PurchaseItem.ingredient)
+            selectinload(models.Purchase.items).selectinload(models.PurchaseItem.ingredient),
+            selectinload(models.Purchase.supplier_entity),
         )
     )
     purchase = result.scalar_one_or_none()

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { comprasAPI, ingredientesAPI } from '../api'
+import { comprasAPI, ingredientesAPI, fornecedoresAPI } from '../api'
 
 const fmt = (v, d = 4) => `R$ ${Number(v).toFixed(d).replace('.', ',')}`
 
@@ -21,7 +21,8 @@ function today() {
 export default function ComprasForm() {
   const navigate = useNavigate()
 
-  const [form, setForm]           = useState({ date: today(), supplier: '', notes: '', tax: '', freight: '' })
+  const [form, setForm]           = useState({ date: today(), supplier_id: '', notes: '', tax: '', freight: '' })
+  const [suppliers, setSuppliers] = useState([])
   const [ingredients, setIngredients] = useState([])
   const [items, setItems]         = useState([])
   const [addIngId, setAddIngId]   = useState('')
@@ -35,14 +36,18 @@ export default function ComprasForm() {
   useEffect(() => {
     async function init() {
       try {
-        const { data } = await ingredientesAPI.listar()
-        setIngredients(data)
-        if (data.length > 0) {
-          setAddIngId(String(data[0].id))
-          setAddUnit(data[0].purchase_unit || data[0].unit)
+        const [{ data: ings }, { data: sups }] = await Promise.all([
+          ingredientesAPI.listar(),
+          fornecedoresAPI.listar(),
+        ])
+        setIngredients(ings)
+        setSuppliers(sups)
+        if (ings.length > 0) {
+          setAddIngId(String(ings[0].id))
+          setAddUnit(ings[0].purchase_unit || ings[0].unit)
         }
       } catch {
-        setError('Erro ao carregar ingredientes.')
+        setError('Erro ao carregar dados.')
       } finally {
         setLoading(false)
       }
@@ -96,7 +101,7 @@ export default function ComprasForm() {
 
     const payload = {
       date: form.date,
-      supplier: form.supplier.trim() || null,
+      supplier_id: form.supplier_id ? Number(form.supplier_id) : null,
       notes: form.notes.trim() || null,
       tax: Number(form.tax) || 0,
       freight: Number(form.freight) || 0,
@@ -167,8 +172,18 @@ export default function ComprasForm() {
               <input id="date" name="date" type="date" value={form.date} onChange={handle} />
             </div>
             <div className="form-group">
-              <label htmlFor="supplier">Fornecedor</label>
-              <input id="supplier" name="supplier" value={form.supplier} onChange={handle} placeholder="Nome do fornecedor" />
+              <label htmlFor="supplier_id">
+                Fornecedor{' '}
+                <Link to="/fornecedores" style={{ fontSize: '.75rem', fontWeight: 600, color: 'var(--muted)' }}>
+                  ⚙️ gerenciar
+                </Link>
+              </label>
+              <select id="supplier_id" name="supplier_id" value={form.supplier_id} onChange={handle}>
+                <option value="">— Nenhum —</option>
+                {suppliers.map(s => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
             </div>
             <div className="form-group">
               <label htmlFor="tax">Imposto (R$)</label>

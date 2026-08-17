@@ -63,6 +63,7 @@ export default function IngredienteHistorico() {
   const [ingredient, setIngredient] = useState(null)
   const [loading, setLoading]       = useState(true)
   const [error, setError]           = useState('')
+  const [supplierFilter, setSupplierFilter] = useState('todos')
 
   useEffect(() => {
     async function load() {
@@ -83,6 +84,18 @@ export default function IngredienteHistorico() {
   }, [id])
 
   if (loading) return <div className="loading">Carregando histórico…</div>
+
+  const supplierOptions = []
+  const seen = new Set()
+  for (const h of history) {
+    const key = h.supplier_id != null ? `id:${h.supplier_id}` : `name:${h.supplier || ''}`
+    if (!h.supplier || seen.has(key)) continue
+    seen.add(key)
+    supplierOptions.push({ key, label: h.supplier })
+  }
+  const filteredHistory = supplierFilter === 'todos'
+    ? history
+    : history.filter(h => (h.supplier_id != null ? `id:${h.supplier_id}` : `name:${h.supplier || ''}`) === supplierFilter)
 
   return (
     <div>
@@ -112,9 +125,31 @@ export default function IngredienteHistorico() {
         </div>
       ) : (
         <>
+          {supplierOptions.length > 1 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.5rem', marginBottom: '1rem' }}>
+              <button
+                type="button"
+                className={`btn btn-sm ${supplierFilter === 'todos' ? 'btn-primary' : 'btn-outline'}`}
+                onClick={() => setSupplierFilter('todos')}
+              >
+                Todos ({history.length})
+              </button>
+              {supplierOptions.map(opt => (
+                <button
+                  key={opt.key}
+                  type="button"
+                  className={`btn btn-sm ${supplierFilter === opt.key ? 'btn-primary' : 'btn-outline'}`}
+                  onClick={() => setSupplierFilter(opt.key)}
+                >
+                  {opt.label} ({history.filter(h => (h.supplier_id != null ? `id:${h.supplier_id}` : `name:${h.supplier || ''}`) === opt.key).length})
+                </button>
+              ))}
+            </div>
+          )}
+
           <div className="card" style={{ marginBottom: '1.5rem' }}>
             <p className="section-title">Evolução do Custo Unitário</p>
-            <CostChart data={history} />
+            <CostChart data={filteredHistory} />
           </div>
 
           <div className="card" style={{ padding: 0, overflow: 'auto' }}>
@@ -131,8 +166,8 @@ export default function IngredienteHistorico() {
                 </tr>
               </thead>
               <tbody>
-                {history.map((item, i) => {
-                  const prev = i > 0 ? history[i - 1].unit_cost : null
+                {filteredHistory.map((item, i) => {
+                  const prev = i > 0 ? filteredHistory[i - 1].unit_cost : null
                   const variation = prev !== null ? ((item.unit_cost - prev) / prev * 100) : null
                   return (
                     <tr key={item.id}>

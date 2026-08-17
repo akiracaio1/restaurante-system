@@ -59,6 +59,15 @@ export const categoriasAPI = {
   excluir:   (id)       => api.delete(`/categorias/${id}`),
 }
 
+export const fornecedoresAPI = {
+  listar:    ()         => api.get('/fornecedores/'),
+  buscar:    (id)       => api.get(`/fornecedores/${id}`),
+  criar:     (data)     => api.post('/fornecedores/', data),
+  atualizar: (id, data) => api.put(`/fornecedores/${id}`, data),
+  excluir:   (id)       => api.delete(`/fornecedores/${id}`),
+  compras:   (id)       => api.get(`/fornecedores/${id}/compras`),
+}
+
 export const comprasAPI = {
   listar:    ()              => api.get('/compras/'),
   buscar:    (id)            => api.get(`/compras/${id}`),
