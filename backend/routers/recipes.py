@@ -99,6 +99,11 @@ def build_response(recipe: models.Recipe) -> schemas.RecipeResponse:
         sale_price=recipe.sale_price,
         yield_portions=recipe.yield_portions,
         stock_unit=recipe.stock_unit or "porção",
+        is_proportional=recipe.is_proportional,
+        proportion_base_ingredient_id=recipe.proportion_base_ingredient_id,
+        proportion_base_ingredient_name=(
+            recipe.proportion_base_ingredient.name if recipe.proportion_base_ingredient else None
+        ),
         ingredients=ingredients_resp,
         sub_recipes=sub_recipes_resp,
         channel_prices=channel_prices_resp,
@@ -112,6 +117,7 @@ def _eager_options():
         selectinload(models.Recipe.recipe_ingredients).selectinload(
             models.RecipeIngredient.ingredient
         ),
+        selectinload(models.Recipe.proportion_base_ingredient),
         selectinload(models.Recipe.sub_recipes)
             .selectinload(models.RecipeSubRecipe.sub_recipe)
             .selectinload(models.Recipe.recipe_ingredients)
@@ -138,12 +144,23 @@ async def list_recipes(
     return [build_response(r) for r in result.scalars().all()]
 
 
+def _validate_proportion(data: schemas.RecipeBase, ingredients: List[schemas.RecipeIngredientInput]):
+    if not data.is_proportional:
+        return
+    if not data.proportion_base_ingredient_id:
+        raise HTTPException(400, "Selecione o ingrediente base da calculadora de proporção")
+    if not any(i.ingredient_id == data.proportion_base_ingredient_id for i in ingredients):
+        raise HTTPException(400, "O ingrediente base precisa estar na lista de ingredientes da receita")
+
+
 @router.post("/", response_model=schemas.RecipeResponse, status_code=201)
 async def create_recipe(
     data: schemas.RecipeCreate,
     db: AsyncSession = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
+    _validate_proportion(data, data.ingredients)
+
     dup = await db.execute(
         select(models.Recipe).where(
             models.Recipe.user_id == current_user.id,
@@ -214,6 +231,8 @@ async def update_recipe(
     recipe = result.scalar_one_or_none()
     if not recipe:
         raise HTTPException(404, "Receita não encontrada")
+
+    _validate_proportion(data, data.ingredients)
 
     dup = await db.execute(
         select(models.Recipe).where(
@@ -472,3 +491,56 @@ async def remove_channel_price(
 
     await db.delete(entry)
     await db.commit()
+
+
+@router.post("/{recipe_id}/calcular-proporcao", response_model=schemas.ProportionCalculateResponse)
+async def calculate_proportion(
+    recipe_id: int,
+    data: schemas.ProportionCalculateInput,
+    db: AsyncSession = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(models.Recipe)
+        .where(models.Recipe.id == recipe_id, models.Recipe.user_id == current_user.id)
+        .options(*_eager_options())
+    )
+    recipe = result.scalar_one_or_none()
+    if not recipe:
+        raise HTTPException(404, "Receita não encontrada")
+
+    if not recipe.is_proportional or not recipe.proportion_base_ingredient_id:
+        raise HTTPException(400, "Esta receita não tem a calculadora de proporção habilitada")
+
+    if data.base_quantity <= 0:
+        raise HTTPException(400, "Informe uma quantidade maior que zero")
+
+    base_ri = next(
+        (ri for ri in recipe.recipe_ingredients if ri.ingredient_id == recipe.proportion_base_ingredient_id),
+        None,
+    )
+    if not base_ri or base_ri.quantity <= 0:
+        raise HTTPException(400, "Ingrediente base não encontrado na receita")
+
+    scale = data.base_quantity / base_ri.quantity
+
+    ingredients_resp = [
+        schemas.ProportionIngredientResult(
+            ingredient_id=ri.ingredient_id,
+            ingredient_name=ri.ingredient.name,
+            unit=ri.ingredient.unit,
+            base_quantity=ri.quantity,
+            calculated_quantity=round(ri.quantity * scale, 3),
+        )
+        for ri in recipe.recipe_ingredients
+    ]
+
+    return schemas.ProportionCalculateResponse(
+        recipe_id=recipe.id,
+        recipe_name=recipe.name,
+        base_ingredient_id=base_ri.ingredient_id,
+        base_ingredient_name=base_ri.ingredient.name,
+        base_ingredient_unit=base_ri.ingredient.unit,
+        scale_factor=round(scale, 6),
+        ingredients=ingredients_resp,
+    )

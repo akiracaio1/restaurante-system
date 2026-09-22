@@ -93,6 +93,11 @@ export default function RecipeCard({ item, editHref, onDelete }) {
       </div>
 
       <div className="recipe-card-actions">
+        {item.is_proportional && (
+          <Link to={`/receitas/${item.id}/calculadora`} className="btn btn-sm btn-secondary">
+            🧮 Calculadora
+          </Link>
+        )}
         <Link to={editHref} className="btn btn-sm btn-outline">
           Editar
         </Link>

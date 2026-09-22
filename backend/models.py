@@ -1,7 +1,7 @@
 import json
 from datetime import datetime
 
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, Text, UniqueConstraint, JSON, Date, DateTime
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, Text, UniqueConstraint, JSON, Date, DateTime, Boolean
 from sqlalchemy.orm import relationship
 from database import Base
 
@@ -87,7 +87,11 @@ class Recipe(Base):
     yield_portions = Column(Integer, nullable=False, default=1)
     stock_unit = Column(String(30), nullable=False, default="porção")
 
+    is_proportional = Column(Boolean, nullable=False, default=False)
+    proportion_base_ingredient_id = Column(Integer, ForeignKey("ingredients.id"), nullable=True)
+
     owner = relationship("User", back_populates="recipes")
+    proportion_base_ingredient = relationship("Ingredient", foreign_keys=[proportion_base_ingredient_id])
     recipe_ingredients = relationship(
         "RecipeIngredient", back_populates="recipe", cascade="all, delete-orphan"
     )

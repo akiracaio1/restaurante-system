@@ -5,6 +5,7 @@ import { receitasAPI, ingredientesAPI, canaisAPI, categoriasAPI } from '../api'
 const EMPTY_FORM = {
   name: '', description: '', category: '',
   sale_price: '', yield_portions: '1', stock_unit: 'porção',
+  is_proportional: false, proportion_base_ingredient_id: '',
 }
 
 const fmt    = (v) => `R$ ${Number(v).toFixed(2).replace('.', ',')}`
@@ -85,6 +86,8 @@ export default function ReceitasForm() {
             sale_price:     String(recipe.sale_price),
             yield_portions: String(recipe.yield_portions),
             stock_unit:     recipe.stock_unit || 'porção',
+            is_proportional: recipe.is_proportional || false,
+            proportion_base_ingredient_id: recipe.proportion_base_ingredient_id ? String(recipe.proportion_base_ingredient_id) : '',
           })
           setSelectedIngs(
             recipe.ingredients.map(ri => ({
@@ -150,6 +153,18 @@ export default function ReceitasForm() {
 
   function removeIngredient(ingId) {
     setSelectedIngs(prev => prev.filter(i => i.ingredient_id !== ingId))
+    setForm(prev => prev.proportion_base_ingredient_id === String(ingId)
+      ? { ...prev, proportion_base_ingredient_id: '' }
+      : prev)
+  }
+
+  function toggleProportional(e) {
+    const checked = e.target.checked
+    setForm(prev => ({
+      ...prev,
+      is_proportional: checked,
+      proportion_base_ingredient_id: checked ? prev.proportion_base_ingredient_id : '',
+    }))
   }
 
   function addSubRecipe() {
@@ -273,6 +288,8 @@ export default function ReceitasForm() {
       return setError('Adicione pelo menos um ingrediente à receita.')
     if (channelEntries.some(e => !e.sale_price || isNaN(e.sale_price) || Number(e.sale_price) <= 0))
       return setError('Preencha o preço de venda de todas as modalidades adicionadas, ou remova a que não for usar.')
+    if (form.is_proportional && !form.proportion_base_ingredient_id)
+      return setError('Selecione o ingrediente base da calculadora de proporção.')
 
     const payload = {
       name:           form.name.trim(),
@@ -281,6 +298,10 @@ export default function ReceitasForm() {
       sale_price:     salePrice,
       yield_portions: portions,
       stock_unit:     form.stock_unit.trim() || 'porção',
+      is_proportional: form.is_proportional,
+      proportion_base_ingredient_id: form.is_proportional && form.proportion_base_ingredient_id
+        ? Number(form.proportion_base_ingredient_id)
+        : null,
       ingredients:    selectedIngs.map(si => ({
         ingredient_id: si.ingredient_id,
         quantity:      si.quantity,
@@ -511,6 +532,37 @@ export default function ReceitasForm() {
                     })}
                   </tbody>
                 </table>
+              )}
+
+              {selectedIngs.length > 0 && (
+                <div className="add-box" style={{ marginTop: '1rem' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '.5rem', fontWeight: 600, cursor: 'pointer' }}>
+                    <input type="checkbox" checked={form.is_proportional} onChange={toggleProportional} />
+                    🧮 Habilitar calculadora de proporção
+                  </label>
+                  <p style={{ fontSize: '.8rem', color: 'var(--muted)', margin: '.3rem 0 .6rem' }}>
+                    Use para receitas cujo ingrediente principal varia de peso a cada preparo (ex: recheio de salmão grelhado).
+                    O funcionário informa a quantidade que tem em mãos e o sistema calcula os demais ingredientes na mesma proporção.
+                  </p>
+                  {form.is_proportional && (
+                    <div className="form-group" style={{ maxWidth: '320px', margin: 0 }}>
+                      <label htmlFor="proportion_base_ingredient_id">Ingrediente base *</label>
+                      <select
+                        id="proportion_base_ingredient_id"
+                        name="proportion_base_ingredient_id"
+                        value={form.proportion_base_ingredient_id}
+                        onChange={handle}
+                      >
+                        <option value="">Selecione…</option>
+                        {selectedIngs.map(si => (
+                          <option key={si.ingredient_id} value={si.ingredient_id}>
+                            {si.ing?.name} ({si.quantity} {si.ing?.unit})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
               )}
             </>
           )}

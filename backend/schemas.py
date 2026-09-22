@@ -96,6 +96,8 @@ class RecipeBase(BaseModel):
     sale_price: float
     yield_portions: int = 1
     stock_unit: str = "porção"
+    is_proportional: bool = False
+    proportion_base_ingredient_id: Optional[int] = None
 
 
 class RecipeCreate(RecipeBase):
@@ -183,11 +185,37 @@ class RecipeResponse(RecipeBase):
     channel_prices: List[RecipeChannelPriceResponse] = []
     total_cost: float = 0.0
     cmv_percent: float = 0.0
+    proportion_base_ingredient_name: Optional[str] = None
     model_config = {"from_attributes": True}
 
 
 class RecipeStockUnitInput(BaseModel):
     stock_unit: str
+
+
+# ── Calculadora de proporção ─────────────────────────────────────────────────
+
+class ProportionCalculateInput(BaseModel):
+    base_quantity: float
+
+
+class ProportionIngredientResult(BaseModel):
+    ingredient_id: int
+    ingredient_name: str
+    unit: str
+    base_quantity: float
+    calculated_quantity: float
+    model_config = {"from_attributes": True}
+
+
+class ProportionCalculateResponse(BaseModel):
+    recipe_id: int
+    recipe_name: str
+    base_ingredient_id: int
+    base_ingredient_name: str
+    base_ingredient_unit: str
+    scale_factor: float
+    ingredients: List[ProportionIngredientResult] = []
 
 
 # ── Suppliers ─────────────────────────────────────────────────────────────────

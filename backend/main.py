@@ -27,6 +27,8 @@ _NEW_COLUMNS = [
     "ALTER TABLE purchases ADD COLUMN tax FLOAT DEFAULT 0.0",
     "ALTER TABLE purchases ADD COLUMN freight FLOAT DEFAULT 0.0",
     "ALTER TABLE purchase_items ADD COLUMN allocated_extra FLOAT DEFAULT 0.0",
+    "ALTER TABLE recipes ADD COLUMN is_proportional BOOLEAN DEFAULT FALSE",
+    "ALTER TABLE recipes ADD COLUMN proportion_base_ingredient_id INTEGER REFERENCES ingredients(id)",
 ]
 
 _NEW_TABLES = [
