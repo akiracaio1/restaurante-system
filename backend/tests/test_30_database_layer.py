@@ -78,6 +78,7 @@ DENIED_READS = [
     "SELECT processing_cost_per_batch FROM ingredients",
     "SELECT min_stock FROM ingredients",
     "SELECT sale_price FROM recipes",
+    "SELECT min_stock FROM recipes",
     "SELECT * FROM ingredients",
     "SELECT * FROM recipes",
     "SELECT i FROM ingredients i",

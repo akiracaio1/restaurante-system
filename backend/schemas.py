@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from typing import List, Optional
 from datetime import date, datetime
 
@@ -125,6 +125,7 @@ class RecipeBase(BaseModel):
     sale_price: float
     yield_portions: int = 1
     stock_unit: str = "porção"
+    min_stock: float = Field(default=0.0, ge=0)
     is_proportional: bool = False
     proportion_base_ingredient_id: Optional[int] = None
 
@@ -220,6 +221,10 @@ class RecipeResponse(RecipeBase):
 
 class RecipeStockUnitInput(BaseModel):
     stock_unit: str
+
+
+class RecipeMinStockInput(BaseModel):
+    min_stock: float = Field(ge=0)
 
 
 # ── Calculadora de proporção ─────────────────────────────────────────────────
@@ -424,6 +429,7 @@ class RecipeStockResponse(BaseModel):
     recipe_name: str
     unit: str
     quantity: float
+    min_stock: float = 0.0
     updated_at: Optional[datetime] = None
     model_config = {"from_attributes": True}
 

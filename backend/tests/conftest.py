@@ -123,6 +123,8 @@ async def build_legacy_database() -> None:
         # volta a tabela users ao formato de antes dos perfis
         await conn.execute(text("ALTER TABLE users DROP CONSTRAINT ck_users_role"))
         await conn.execute(text("ALTER TABLE users DROP COLUMN account_id, DROP COLUMN role, DROP COLUMN is_active"))
+        # e a tabela recipes ao formato de antes do estoque mínimo de receitas
+        await conn.execute(text("ALTER TABLE recipes DROP COLUMN min_stock"))
         for uid, email, pwd in ((1, OWNER_EMAIL, OWNER_PASSWORD), (2, OTHER_EMAIL, OTHER_PASSWORD)):
             await conn.execute(
                 text("INSERT INTO users (id, email, hashed_password) VALUES (:i, :e, :h)"),

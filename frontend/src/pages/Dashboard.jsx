@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { ingredientesAPI, receitasAPI } from '../api'
+import { ingredientesAPI, receitasAPI, estoqueAPI } from '../api'
 import { useAuth } from '../context/AuthContext'
 
 const fmt    = (v) => `R$ ${Number(v).toFixed(2).replace('.', ',')}`
@@ -40,13 +40,28 @@ export default function Dashboard() {
   const { email } = useAuth()
   const [ingredientes, setIngredientes] = useState([])
   const [receitas, setReceitas] = useState([])
+  const [lowStock, setLowStock] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    Promise.all([ingredientesAPI.listar(), receitasAPI.listar()])
-      .then(([{ data: ings }, { data: recs }]) => {
+    // O aviso de estoque é opcional: se falhar, o resto do dashboard continua funcionando.
+    const emptyList = () => ({ data: [] })
+    Promise.all([
+      ingredientesAPI.listar(),
+      receitasAPI.listar(),
+      estoqueAPI.listarReceitas().catch(emptyList),
+      estoqueAPI.listar().catch(emptyList),
+    ])
+      .then(([{ data: ings }, { data: recs }, { data: recStock }, { data: ingStock }]) => {
         setIngredientes(ings)
         setReceitas(recs)
+        const low = (qty, min) => (min ?? 0) > 0 && qty < min
+        setLowStock([
+          ...recStock.filter(r => low(r.quantity, r.min_stock))
+            .map(r => ({ key: `r${r.recipe_id}`, name: r.recipe_name, qty: r.quantity, min: r.min_stock, unit: r.unit })),
+          ...ingStock.filter(i => low(i.quantity, i.min_stock))
+            .map(i => ({ key: `i${i.ingredient_id}`, name: i.ingredient_name, qty: i.quantity, min: i.min_stock, unit: i.unit })),
+        ])
       })
       .finally(() => setLoading(false))
   }, [])
@@ -140,6 +155,16 @@ export default function Dashboard() {
         <div className="alert alert-error" style={{ marginBottom: 0 }}>
           ⚠️ <strong>{pior.name}</strong> tem CMV de{' '}
           <strong>{fmtPct(pior.cmv_percent)}</strong> — revise a precificação!
+        </div>
+      )}
+
+      {/* Alerta de estoque abaixo do mínimo */}
+      {lowStock.length > 0 && (
+        <div className="alert alert-error" style={{ marginBottom: 0 }}>
+          ⚠️ <strong>Estoque abaixo do mínimo:</strong>{' '}
+          {lowStock.slice(0, 6).map(s => `${s.name} (${Number(s.qty).toFixed(1).replace('.', ',')} de ${Number(s.min).toFixed(1).replace('.', ',')} ${s.unit})`).join(' · ')}
+          {lowStock.length > 6 && ` · e mais ${lowStock.length - 6}`}{' '}
+          <Link to="/estoque" style={{ color: 'inherit', fontWeight: 700 }}>Ver estoque →</Link>
         </div>
       )}
 

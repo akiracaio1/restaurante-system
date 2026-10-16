@@ -164,6 +164,7 @@ def build_response(recipe: models.Recipe) -> schemas.RecipeResponse:
         sale_price=recipe.sale_price,
         yield_portions=recipe.yield_portions,
         stock_unit=recipe.stock_unit or "porção",
+        min_stock=recipe.min_stock or 0.0,
         is_proportional=recipe.is_proportional,
         proportion_base_ingredient_id=recipe.proportion_base_ingredient_id,
         proportion_base_ingredient_name=(
@@ -326,7 +327,10 @@ async def update_recipe(
     if dup.scalar_one_or_none():
         raise HTTPException(400, "Receita com este nome já existe")
 
-    for k, v in data.model_dump(exclude={"ingredients"}).items():
+    fields = data.model_dump(exclude={"ingredients"})
+    if "min_stock" not in data.model_fields_set:
+        fields.pop("min_stock")  # cliente antigo que não envia o campo não zera o mínimo
+    for k, v in fields.items():
         setattr(recipe, k, v)
 
     for ri in list(recipe.recipe_ingredients):
@@ -396,6 +400,31 @@ async def update_stock_unit(
     if not unit:
         raise HTTPException(400, "Unidade de estoque não pode ser vazia")
     recipe.stock_unit = unit
+    await db.commit()
+
+    result = await db.execute(
+        select(models.Recipe).where(models.Recipe.id == recipe_id).options(*_eager_options())
+    )
+    return build_response(result.scalar_one())
+
+
+@router.put("/{recipe_id}/estoque-minimo", response_model=schemas.RecipeResponse)
+async def update_min_stock(
+    recipe_id: int,
+    data: schemas.RecipeMinStockInput,
+    db: AsyncSession = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(models.Recipe).where(
+            models.Recipe.id == recipe_id,
+            models.Recipe.user_id == current_user.account_id,
+        )
+    )
+    recipe = result.scalar_one_or_none()
+    if not recipe:
+        raise HTTPException(404, "Receita não encontrada")
+    recipe.min_stock = data.min_stock
     await db.commit()
 
     result = await db.execute(

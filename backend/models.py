@@ -98,6 +98,7 @@ class Recipe(Base):
     sale_price = Column(Float, nullable=False)
     yield_portions = Column(Integer, nullable=False, default=1)
     stock_unit = Column(String(30), nullable=False, default="porção")
+    min_stock = Column(Float, nullable=False, default=0.0, server_default="0")
 
     is_proportional = Column(Boolean, nullable=False, default=False)
     proportion_base_ingredient_id = Column(Integer, ForeignKey("ingredients.id"), nullable=True)

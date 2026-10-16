@@ -21,6 +21,7 @@ export default function EstoqueLista() {
   const [adjust, setAdjust]       = useState(null) // { type: 'ingrediente'|'receita', id, label, unit }
   const [adjQty, setAdjQty]       = useState('')
   const [adjUnit, setAdjUnit]     = useState('')
+  const [adjMin, setAdjMin]       = useState('')
   const [adjNotes, setAdjNotes]   = useState('')
   const [adjusting, setAdjusting] = useState(false)
 
@@ -50,9 +51,10 @@ export default function EstoqueLista() {
   }
 
   function openAdjustReceita(item) {
-    setAdjust({ type: 'receita', id: item.recipe_id, label: item.recipe_name, unit: item.unit })
+    setAdjust({ type: 'receita', id: item.recipe_id, label: item.recipe_name, unit: item.unit, min: item.min_stock ?? 0 })
     setAdjQty(String(item.quantity))
     setAdjUnit(item.unit)
+    setAdjMin(String(item.min_stock ?? 0))
     setAdjNotes('')
     setError('')
   }
@@ -62,6 +64,8 @@ export default function EstoqueLista() {
     const qty = Number(adjQty)
     if (isNaN(qty) || qty < 0) return setError('Quantidade inválida.')
     if (adjust.type === 'receita' && !adjUnit.trim()) return setError('Unidade não pode ser vazia.')
+    const minVal = Number(adjMin)
+    if (adjust.type === 'receita' && (adjMin === '' || isNaN(minVal) || minVal < 0)) return setError('Estoque mínimo inválido.')
     try {
       setAdjusting(true)
       if (adjust.type === 'ingrediente') {
@@ -69,6 +73,9 @@ export default function EstoqueLista() {
       } else {
         if (adjUnit.trim() !== adjust.unit) {
           await receitasAPI.atualizarUnidadeEstoque(adjust.id, adjUnit.trim())
+        }
+        if (minVal !== adjust.min) {
+          await receitasAPI.atualizarEstoqueMinimo(adjust.id, minVal)
         }
         await estoqueAPI.ajustarReceita(adjust.id, { quantity: qty, notes: adjNotes || null })
       }
@@ -85,6 +92,8 @@ export default function EstoqueLista() {
   }
 
   const items = view === 'ingredientes' ? ingItems : recItems
+  const lowRecipes     = recItems.filter(r => (r.min_stock ?? 0) > 0 && r.quantity < r.min_stock)
+  const lowIngredients = ingItems.filter(i => (i.min_stock ?? 0) > 0 && i.quantity < i.min_stock)
 
   const filtered = useMemo(() =>
     items.filter(i => {
@@ -107,6 +116,16 @@ export default function EstoqueLista() {
 
       {error   && <div className="alert alert-error">{error}</div>}
       {success && <div className="alert alert-success">{success}</div>}
+
+      {!loading && (lowRecipes.length > 0 || lowIngredients.length > 0) && (
+        <div className="alert alert-error">
+          ⚠️ <strong>Abaixo do estoque mínimo:</strong>{' '}
+          {[
+            ...lowRecipes.map(r => `${r.recipe_name} (${fmtQty(r.quantity)} de ${fmtQty(r.min_stock)} ${r.unit})`),
+            ...lowIngredients.map(i => `${i.ingredient_name} (${fmtQty(i.quantity)} de ${fmtQty(i.min_stock)} ${i.unit})`),
+          ].join(' · ')}
+        </div>
+      )}
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.5rem', marginBottom: '1rem' }}>
         <button
@@ -143,6 +162,19 @@ export default function EstoqueLista() {
                     value={adjUnit}
                     onChange={e => setAdjUnit(e.target.value)}
                     placeholder="Ex: porção, unidade, bandeja"
+                  />
+                </div>
+              )}
+              {adjust.type === 'receita' && (
+                <div className="form-group">
+                  <label>Estoque mínimo ({adjUnit || adjust.unit})</label>
+                  <input
+                    type="number"
+                    step="0.001"
+                    min="0"
+                    value={adjMin}
+                    onChange={e => setAdjMin(e.target.value)}
+                    placeholder="0 = não avisar"
                   />
                 </div>
               )}
@@ -265,22 +297,29 @@ export default function EstoqueLista() {
                 <th>Receita</th>
                 <th>Unidade</th>
                 <th>Estoque Atual</th>
+                <th>Estoque Mín.</th>
+                <th>Status</th>
                 <th>Ação</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map(item => (
-                <tr key={item.recipe_id}>
-                  <td style={{ fontWeight: 600 }}>{item.recipe_name}</td>
-                  <td>{item.unit}</td>
-                  <td style={{ fontWeight: 700 }}>{fmtQty(item.quantity)}</td>
-                  <td>
-                    <button className="btn btn-sm btn-outline" onClick={() => openAdjustReceita(item)}>
-                      Ajustar
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {filtered.map(item => {
+                const { label, cls } = statusInfo(item.quantity, item.min_stock ?? 0)
+                return (
+                  <tr key={item.recipe_id}>
+                    <td style={{ fontWeight: 600 }}>{item.recipe_name}</td>
+                    <td>{item.unit}</td>
+                    <td style={{ fontWeight: 700 }}>{fmtQty(item.quantity)}</td>
+                    <td style={{ color: 'var(--muted)' }}>{fmtQty(item.min_stock ?? 0)}</td>
+                    <td><span className={`badge ${cls}`}>{label}</span></td>
+                    <td>
+                      <button className="btn btn-sm btn-outline" onClick={() => openAdjustReceita(item)}>
+                        Ajustar
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>

@@ -4,7 +4,7 @@ import { receitasAPI, ingredientesAPI, canaisAPI, categoriasAPI } from '../api'
 
 const EMPTY_FORM = {
   name: '', description: '', category: '',
-  sale_price: '', yield_portions: '1', stock_unit: 'porção',
+  sale_price: '', yield_portions: '1', stock_unit: 'porção', min_stock: '0',
   is_proportional: false, proportion_base_ingredient_id: '',
 }
 
@@ -86,6 +86,7 @@ export default function ReceitasForm() {
             sale_price:     String(recipe.sale_price),
             yield_portions: String(recipe.yield_portions),
             stock_unit:     recipe.stock_unit || 'porção',
+            min_stock:      String(recipe.min_stock ?? 0),
             is_proportional: recipe.is_proportional || false,
             proportion_base_ingredient_id: recipe.proportion_base_ingredient_id ? String(recipe.proportion_base_ingredient_id) : '',
           })
@@ -290,6 +291,8 @@ export default function ReceitasForm() {
       return setError('Preencha o preço de venda de todas as modalidades adicionadas, ou remova a que não for usar.')
     if (form.is_proportional && !form.proportion_base_ingredient_id)
       return setError('Selecione o ingrediente base da calculadora de proporção.')
+    if (form.min_stock === '' || isNaN(form.min_stock) || Number(form.min_stock) < 0)
+      return setError('Estoque mínimo inválido.')
 
     const payload = {
       name:           form.name.trim(),
@@ -298,6 +301,7 @@ export default function ReceitasForm() {
       sale_price:     salePrice,
       yield_portions: portions,
       stock_unit:     form.stock_unit.trim() || 'porção',
+      min_stock:      Number(form.min_stock),
       is_proportional: form.is_proportional,
       proportion_base_ingredient_id: form.is_proportional && form.proportion_base_ingredient_id
         ? Number(form.proportion_base_ingredient_id)
@@ -452,6 +456,23 @@ export default function ReceitasForm() {
                 onChange={handle}
                 placeholder="Ex: porção, unidade, bandeja"
               />
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="min_stock">Estoque Mínimo ({form.stock_unit || 'porção'})</label>
+              <input
+                id="min_stock"
+                name="min_stock"
+                type="number"
+                step="0.001"
+                min="0"
+                value={form.min_stock}
+                onChange={handle}
+                placeholder="0"
+              />
+              <span style={{ fontSize: '.75rem', color: 'var(--muted)' }}>
+                Avisa no Estoque e no Dashboard quando o produto pronto estiver abaixo disso. Use 0 para não avisar.
+              </span>
             </div>
           </div>
 

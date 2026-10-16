@@ -49,6 +49,7 @@ export const receitasAPI = {
   definirPrecoCanal:  (id, channelId, data) => api.put(`/receitas/${id}/canais/${channelId}`, data),
   removerPrecoCanal:  (id, channelId)       => api.delete(`/receitas/${id}/canais/${channelId}`),
   atualizarUnidadeEstoque: (id, stockUnit)  => api.put(`/receitas/${id}/unidade-estoque`, { stock_unit: stockUnit }),
+  atualizarEstoqueMinimo:  (id, minStock)   => api.put(`/receitas/${id}/estoque-minimo`, { min_stock: minStock }),
   calcularProporcao:  (id, baseQuantity)    => api.post(`/receitas/${id}/calcular-proporcao`, { base_quantity: baseQuantity }),
 }
 

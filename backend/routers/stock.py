@@ -153,6 +153,7 @@ def _to_recipe_response(stock: models.RecipeStock) -> schemas.RecipeStockRespons
         recipe_name=stock.recipe.name if stock.recipe else '',
         unit=stock.recipe.stock_unit if stock.recipe else 'porção',
         quantity=stock.quantity,
+        min_stock=(stock.recipe.min_stock or 0.0) if stock.recipe else 0.0,
         updated_at=stock.updated_at,
     )
 
@@ -182,6 +183,7 @@ async def list_recipe_stock(
             recipe_name=r.name,
             unit=r.stock_unit or 'porção',
             quantity=stock_by_recipe[r.id].quantity if r.id in stock_by_recipe else 0.0,
+            min_stock=r.min_stock or 0.0,
             updated_at=stock_by_recipe[r.id].updated_at if r.id in stock_by_recipe else None,
         )
         for r in recipes
