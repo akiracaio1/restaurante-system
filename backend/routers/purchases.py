@@ -69,7 +69,7 @@ async def list_purchases(
 ):
     result = await db.execute(
         select(models.Purchase)
-        .where(models.Purchase.user_id == current_user.id)
+        .where(models.Purchase.user_id == current_user.account_id)
         .options(
             selectinload(models.Purchase.items).selectinload(models.PurchaseItem.ingredient),
             selectinload(models.Purchase.supplier_entity),
@@ -94,7 +94,7 @@ async def create_purchase(
         supplier_result = await db.execute(
             select(models.Supplier).where(
                 models.Supplier.id == data.supplier_id,
-                models.Supplier.user_id == current_user.id,
+                models.Supplier.user_id == current_user.account_id,
             )
         )
         supplier = supplier_result.scalar_one_or_none()
@@ -104,7 +104,7 @@ async def create_purchase(
         supplier_name = supplier.name  # fallback exibido se o fornecedor for excluído depois (supplier_id vira NULL)
 
     purchase = models.Purchase(
-        user_id=current_user.id,
+        user_id=current_user.account_id,
         date=data.date,
         supplier=supplier_name,
         supplier_id=supplier_id,
@@ -125,7 +125,7 @@ async def create_purchase(
         ing_result = await db.execute(
             select(models.Ingredient).where(
                 models.Ingredient.id == item_data.ingredient_id,
-                models.Ingredient.user_id == current_user.id,
+                models.Ingredient.user_id == current_user.account_id,
             )
         )
         ingredient = ing_result.scalar_one_or_none()
@@ -158,7 +158,7 @@ async def create_purchase(
 
         stock_result = await db.execute(
             select(models.Stock).where(
-                models.Stock.user_id == current_user.id,
+                models.Stock.user_id == current_user.account_id,
                 models.Stock.ingredient_id == item_data.ingredient_id,
             )
         )
@@ -168,7 +168,7 @@ async def create_purchase(
             stock.updated_at = datetime.utcnow()
         else:
             stock = models.Stock(
-                user_id=current_user.id,
+                user_id=current_user.account_id,
                 ingredient_id=item_data.ingredient_id,
                 quantity=qty_base,
                 updated_at=datetime.utcnow(),
@@ -176,7 +176,7 @@ async def create_purchase(
             db.add(stock)
 
         movement = models.StockMovement(
-            user_id=current_user.id,
+            user_id=current_user.account_id,
             ingredient_id=item_data.ingredient_id,
             type='entrada',
             quantity=item_data.quantity,
@@ -210,7 +210,7 @@ async def ingredient_purchase_history(
         select(models.PurchaseItem)
         .join(models.Purchase, models.PurchaseItem.purchase_id == models.Purchase.id)
         .where(
-            models.Purchase.user_id == current_user.id,
+            models.Purchase.user_id == current_user.account_id,
             models.PurchaseItem.ingredient_id == ingredient_id,
         )
         .options(
@@ -251,7 +251,7 @@ async def get_purchase(
         select(models.Purchase)
         .where(
             models.Purchase.id == purchase_id,
-            models.Purchase.user_id == current_user.id,
+            models.Purchase.user_id == current_user.account_id,
         )
         .options(
             selectinload(models.Purchase.items).selectinload(models.PurchaseItem.ingredient),
@@ -273,7 +273,7 @@ async def delete_purchase(
     result = await db.execute(
         select(models.Purchase).where(
             models.Purchase.id == purchase_id,
-            models.Purchase.user_id == current_user.id,
+            models.Purchase.user_id == current_user.account_id,
         )
     )
     purchase = result.scalar_one_or_none()

@@ -6,11 +6,35 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 
 from database import get_db
-from auth import get_current_user
+from auth import get_current_user, get_operational_context, OperationalContext
 import models
 import schemas
 
 router = APIRouter()
+
+
+def _parse_stages(raw):
+    if isinstance(raw, list):
+        return raw
+    if isinstance(raw, str) and raw not in ('null', ''):
+        return json.loads(raw)
+    return []
+
+
+def _operacao_columns():
+    # Somente colunas liberadas ao papel restrito do banco (ver rbac_db.py).
+    I = models.Ingredient
+    return (I.id, I.name, I.unit, I.yield_percentage, I.reduction_stages)
+
+
+def _to_operacao_response(row) -> schemas.IngredientOperacaoResponse:
+    return schemas.IngredientOperacaoResponse(
+        id=row.id,
+        name=row.name,
+        unit=row.unit,
+        yield_percentage=row.yield_percentage if row.yield_percentage is not None else 100.0,
+        reduction_stages=_parse_stages(row.reduction_stages),
+    )
 
 
 def _to_response(obj: models.Ingredient) -> schemas.IngredientResponse:
@@ -24,7 +48,7 @@ def _to_response(obj: models.Ingredient) -> schemas.IngredientResponse:
         purchase_quantity=obj.purchase_quantity,
         purchase_cost=obj.purchase_cost,
         yield_percentage=obj.yield_percentage,
-        reduction_stages=obj.reduction_stages if isinstance(obj.reduction_stages, list) else (json.loads(obj.reduction_stages) if isinstance(obj.reduction_stages, str) and obj.reduction_stages not in ('null', '') else []),
+        reduction_stages=_parse_stages(obj.reduction_stages),
         real_unit_cost=obj.real_unit_cost,
         processing_cost_per_unit=obj.processing_cost_per_unit,
         processing_cost_per_batch=obj.processing_cost_per_batch,
@@ -32,17 +56,24 @@ def _to_response(obj: models.Ingredient) -> schemas.IngredientResponse:
     )
 
 
-@router.get("/", response_model=List[schemas.IngredientResponse])
-async def list_ingredients(
-    db: AsyncSession = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
-):
-    result = await db.execute(
-        select(models.Ingredient)
-        .where(models.Ingredient.user_id == current_user.id)
+# response_model=None: o formato depende do perfil (Master = completo, Operação =
+# sem nenhum campo financeiro). Cada perfil devolve a sua própria classe.
+@router.get("/", response_model=None)
+async def list_ingredients(ctx: OperationalContext = Depends(get_operational_context)):
+    if ctx.is_master:
+        result = await ctx.db.execute(
+            select(models.Ingredient)
+            .where(models.Ingredient.user_id == ctx.account_id)
+            .order_by(models.Ingredient.name)
+        )
+        return [_to_response(i) for i in result.scalars().all()]
+
+    result = await ctx.db.execute(
+        select(*_operacao_columns())
+        .where(models.Ingredient.user_id == ctx.account_id)
         .order_by(models.Ingredient.name)
     )
-    return [_to_response(i) for i in result.scalars().all()]
+    return [_to_operacao_response(r) for r in result.all()]
 
 
 @router.post("/", response_model=schemas.IngredientResponse, status_code=201)
@@ -53,35 +84,46 @@ async def create_ingredient(
 ):
     dup = await db.execute(
         select(models.Ingredient).where(
-            models.Ingredient.user_id == current_user.id,
+            models.Ingredient.user_id == current_user.account_id,
             models.Ingredient.name == data.name,
         )
     )
     if dup.scalar_one_or_none():
         raise HTTPException(400, "Ingrediente com este nome já existe")
-    obj = models.Ingredient(**data.model_dump(), user_id=current_user.id)
+    obj = models.Ingredient(**data.model_dump(), user_id=current_user.account_id)
     db.add(obj)
     await db.commit()
     await db.refresh(obj)
     return _to_response(obj)
 
 
-@router.get("/{ingredient_id}", response_model=schemas.IngredientResponse)
+@router.get("/{ingredient_id}", response_model=None)
 async def get_ingredient(
     ingredient_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
+    ctx: OperationalContext = Depends(get_operational_context),
 ):
-    result = await db.execute(
-        select(models.Ingredient).where(
+    if ctx.is_master:
+        result = await ctx.db.execute(
+            select(models.Ingredient).where(
+                models.Ingredient.id == ingredient_id,
+                models.Ingredient.user_id == ctx.account_id,
+            )
+        )
+        obj = result.scalar_one_or_none()
+        if not obj:
+            raise HTTPException(404, "Ingrediente não encontrado")
+        return _to_response(obj)
+
+    result = await ctx.db.execute(
+        select(*_operacao_columns()).where(
             models.Ingredient.id == ingredient_id,
-            models.Ingredient.user_id == current_user.id,
+            models.Ingredient.user_id == ctx.account_id,
         )
     )
-    obj = result.scalar_one_or_none()
-    if not obj:
+    row = result.first()
+    if not row:
         raise HTTPException(404, "Ingrediente não encontrado")
-    return _to_response(obj)
+    return _to_operacao_response(row)
 
 
 @router.put("/{ingredient_id}", response_model=schemas.IngredientResponse)
@@ -94,7 +136,7 @@ async def update_ingredient(
     result = await db.execute(
         select(models.Ingredient).where(
             models.Ingredient.id == ingredient_id,
-            models.Ingredient.user_id == current_user.id,
+            models.Ingredient.user_id == current_user.account_id,
         )
     )
     obj = result.scalar_one_or_none()
@@ -102,7 +144,7 @@ async def update_ingredient(
         raise HTTPException(404, "Ingrediente não encontrado")
     dup = await db.execute(
         select(models.Ingredient).where(
-            models.Ingredient.user_id == current_user.id,
+            models.Ingredient.user_id == current_user.account_id,
             models.Ingredient.name == data.name,
             models.Ingredient.id != ingredient_id,
         )
@@ -125,7 +167,7 @@ async def delete_ingredient(
     result = await db.execute(
         select(models.Ingredient).where(
             models.Ingredient.id == ingredient_id,
-            models.Ingredient.user_id == current_user.id,
+            models.Ingredient.user_id == current_user.account_id,
         )
     )
     obj = result.scalar_one_or_none()

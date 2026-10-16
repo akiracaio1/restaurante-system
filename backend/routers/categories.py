@@ -18,7 +18,7 @@ async def list_categories(
 ):
     result = await db.execute(
         select(models.Category)
-        .where(models.Category.user_id == current_user.id)
+        .where(models.Category.user_id == current_user.account_id)
         .order_by(models.Category.name)
     )
     return result.scalars().all()
@@ -32,13 +32,13 @@ async def create_category(
 ):
     dup = await db.execute(
         select(models.Category).where(
-            models.Category.user_id == current_user.id,
+            models.Category.user_id == current_user.account_id,
             models.Category.name == data.name,
         )
     )
     if dup.scalar_one_or_none():
         raise HTTPException(400, "Categoria com este nome já existe")
-    obj = models.Category(name=data.name, user_id=current_user.id)
+    obj = models.Category(name=data.name, user_id=current_user.account_id)
     db.add(obj)
     await db.commit()
     await db.refresh(obj)
@@ -55,7 +55,7 @@ async def update_category(
     result = await db.execute(
         select(models.Category).where(
             models.Category.id == category_id,
-            models.Category.user_id == current_user.id,
+            models.Category.user_id == current_user.account_id,
         )
     )
     obj = result.scalar_one_or_none()
@@ -64,7 +64,7 @@ async def update_category(
 
     dup = await db.execute(
         select(models.Category).where(
-            models.Category.user_id == current_user.id,
+            models.Category.user_id == current_user.account_id,
             models.Category.name == data.name,
             models.Category.id != category_id,
         )
@@ -78,7 +78,7 @@ async def update_category(
         await db.execute(
             update(models.Recipe)
             .where(
-                models.Recipe.user_id == current_user.id,
+                models.Recipe.user_id == current_user.account_id,
                 models.Recipe.category == old_name,
             )
             .values(category=data.name)
@@ -97,7 +97,7 @@ async def delete_category(
     result = await db.execute(
         select(models.Category).where(
             models.Category.id == category_id,
-            models.Category.user_id == current_user.id,
+            models.Category.user_id == current_user.account_id,
         )
     )
     obj = result.scalar_one_or_none()

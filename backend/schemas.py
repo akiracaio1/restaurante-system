@@ -18,6 +18,35 @@ class UserLogin(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+    role: Optional[str] = None
+
+
+class MeResponse(BaseModel):
+    id: int
+    email: str
+    role: str
+
+
+# ── Usuários (administração, somente Master) ─────────────────────────────────
+
+class UserAdminCreate(BaseModel):
+    email: EmailStr
+    password: str
+    role: str
+
+
+class UserAdminUpdate(BaseModel):
+    role: Optional[str] = None
+    is_active: Optional[bool] = None
+    password: Optional[str] = None
+
+
+class UserAdminResponse(BaseModel):
+    id: int
+    email: str
+    role: str
+    is_active: bool
+    model_config = {"from_attributes": True}
 
 
 # ── Ingredients ───────────────────────────────────────────────────────────────
@@ -215,7 +244,50 @@ class ProportionCalculateResponse(BaseModel):
     base_ingredient_name: str
     base_ingredient_unit: str
     scale_factor: float
+    base_yield: float
+    calculated_yield: float
+    yield_unit: str
     ingredients: List[ProportionIngredientResult] = []
+
+
+# ── Visão do perfil Operação ──────────────────────────────────────────────────
+# Estes modelos NÃO herdam de nenhum schema financeiro e não declaram nenhum
+# campo de custo, preço, margem ou compra: o que não existe aqui não é enviado.
+
+class IngredientOperacaoResponse(BaseModel):
+    id: int
+    name: str
+    unit: str
+    yield_percentage: float = 100.0
+    reduction_stages: List[ReductionStage] = []
+
+
+class RecipeIngredientOperacaoResponse(BaseModel):
+    ingredient_id: int
+    ingredient_name: str
+    ingredient_unit: str
+    quantity: float
+
+
+class SubRecipeOperacaoResponse(BaseModel):
+    id: int
+    sub_recipe_id: int
+    sub_recipe_name: str
+    portions: float
+
+
+class RecipeOperacaoResponse(BaseModel):
+    id: int
+    name: str
+    description: Optional[str] = None
+    category: str
+    yield_portions: int = 1
+    stock_unit: str = "porção"
+    is_proportional: bool = False
+    proportion_base_ingredient_id: Optional[int] = None
+    proportion_base_ingredient_name: Optional[str] = None
+    ingredients: List[RecipeIngredientOperacaoResponse] = []
+    sub_recipes: List[SubRecipeOperacaoResponse] = []
 
 
 # ── Suppliers ─────────────────────────────────────────────────────────────────

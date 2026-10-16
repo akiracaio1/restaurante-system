@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { ingredientesAPI } from '../api'
+import { useAuth } from '../context/AuthContext'
 
 const fmt = (v, d = 2) => `R$ ${Number(v).toFixed(d).replace('.', ',')}`
 
@@ -19,6 +20,7 @@ function calcYieldTotal(item) {
 }
 
 export default function IngredientesLista() {
+  const { isMaster } = useAuth()
   const [items, setItems]     = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError]     = useState('')
@@ -66,7 +68,7 @@ export default function IngredientesLista() {
             {items.length} ingrediente{items.length !== 1 ? 's' : ''} cadastrado{items.length !== 1 ? 's' : ''}
           </p>
         </div>
-        <Link to="/ingredientes/novo" className="btn btn-primary">+ Novo Ingrediente</Link>
+        {isMaster && <Link to="/ingredientes/novo" className="btn btn-primary">+ Novo Ingrediente</Link>}
       </div>
 
       {error   && <div className="alert alert-error">{error}</div>}
@@ -99,11 +101,13 @@ export default function IngredientesLista() {
           <div className="empty-state">
             <span className="empty-icon">🥦</span>
             <p className="empty-text">Nenhum ingrediente cadastrado</p>
-            <p className="empty-sub">
-              <Link to="/ingredientes/novo" style={{ color: 'var(--orange)', fontWeight: 700 }}>
-                Cadastre seu primeiro ingrediente
-              </Link>
-            </p>
+            {isMaster && (
+              <p className="empty-sub">
+                <Link to="/ingredientes/novo" style={{ color: 'var(--orange)', fontWeight: 700 }}>
+                  Cadastre seu primeiro ingrediente
+                </Link>
+              </p>
+            )}
           </div>
         </div>
       ) : filtered.length === 0 ? (
@@ -131,33 +135,37 @@ export default function IngredientesLista() {
                 </div>
 
                 <div className="ing-card-body">
-                  <div className="ing-card-row">
-                    <span className="ing-card-label">Custo unitário</span>
-                    <span className="ing-card-value">{fmt(item.unit_cost, 4)}/{item.unit}</span>
-                  </div>
+                  {isMaster && (
+                    <>
+                      <div className="ing-card-row">
+                        <span className="ing-card-label">Custo unitário</span>
+                        <span className="ing-card-value">{fmt(item.unit_cost, 4)}/{item.unit}</span>
+                      </div>
 
-                  {isCalc && (
-                    <div className="ing-card-row">
-                      <span className="ing-card-label">Custo real</span>
-                      <span className="ing-card-value highlight">{fmt(item.real_unit_cost, 4)}/{item.unit}</span>
-                    </div>
+                      {isCalc && (
+                        <div className="ing-card-row">
+                          <span className="ing-card-label">Custo real</span>
+                          <span className="ing-card-value highlight">{fmt(item.real_unit_cost, 4)}/{item.unit}</span>
+                        </div>
+                      )}
+
+                      {(item.processing_cost_per_unit != null || item.processing_cost_per_batch != null) && (
+                        <div className="ing-card-row">
+                          <span className="ing-card-label">Processamento</span>
+                          <span className="ing-card-value" style={{ color: 'var(--muted)', fontSize: '.8rem' }}>
+                            {item.processing_cost_per_unit != null
+                              ? `+${fmt(item.processing_cost_per_unit, 2)}/${item.unit}`
+                              : `+${fmt(item.processing_cost_per_batch, 2)}/lote`}
+                          </span>
+                        </div>
+                      )}
+
+                      <div className="ing-card-row">
+                        <span className="ing-card-label">Estoque mín.</span>
+                        <span className="ing-card-value">{item.min_stock} {item.unit}</span>
+                      </div>
+                    </>
                   )}
-
-                  {(item.processing_cost_per_unit != null || item.processing_cost_per_batch != null) && (
-                    <div className="ing-card-row">
-                      <span className="ing-card-label">Processamento</span>
-                      <span className="ing-card-value" style={{ color: 'var(--muted)', fontSize: '.8rem' }}>
-                        {item.processing_cost_per_unit != null
-                          ? `+${fmt(item.processing_cost_per_unit, 2)}/${item.unit}`
-                          : `+${fmt(item.processing_cost_per_batch, 2)}/lote`}
-                      </span>
-                    </div>
-                  )}
-
-                  <div className="ing-card-row">
-                    <span className="ing-card-label">Estoque mín.</span>
-                    <span className="ing-card-value">{item.min_stock} {item.unit}</span>
-                  </div>
 
                   <div className="ing-card-yield">
                     <div className="yield-label-row">
@@ -176,20 +184,22 @@ export default function IngredientesLista() {
                   </div>
                 </div>
 
-                <div className="ing-card-actions">
-                  <Link to={`/ingredientes/${item.id}/historico`} className="btn btn-sm btn-outline">
-                    📈 Histórico
-                  </Link>
-                  <Link to={`/ingredientes/${item.id}/editar`} className="btn btn-sm btn-outline">
-                    Editar
-                  </Link>
-                  <button
-                    className="btn btn-sm btn-danger"
-                    onClick={() => handleDelete(item.id, item.name)}
-                  >
-                    Excluir
-                  </button>
-                </div>
+                {isMaster && (
+                  <div className="ing-card-actions">
+                    <Link to={`/ingredientes/${item.id}/historico`} className="btn btn-sm btn-outline">
+                      📈 Histórico
+                    </Link>
+                    <Link to={`/ingredientes/${item.id}/editar`} className="btn btn-sm btn-outline">
+                      Editar
+                    </Link>
+                    <button
+                      className="btn btn-sm btn-danger"
+                      onClick={() => handleDelete(item.id, item.name)}
+                    >
+                      Excluir
+                    </button>
+                  </div>
+                )}
               </div>
             )
           })}

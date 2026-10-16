@@ -1,9 +1,11 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { receitasAPI } from '../api'
-import RecipeCard, { CAT_ICON } from '../components/RecipeCard'
+import RecipeCard, { RecipeCardOperacao, CAT_ICON } from '../components/RecipeCard'
+import { useAuth } from '../context/AuthContext'
 
 export default function SubReceitasLista() {
+  const { isMaster } = useAuth()
   const [items, setItems]     = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError]     = useState('')
@@ -80,7 +82,7 @@ export default function SubReceitasLista() {
         </div>
         <div style={{ display: 'flex', gap: '.6rem' }}>
           <Link to="/receitas" className="btn btn-outline">🍳 Receitas</Link>
-          <Link to="/receitas/nova" className="btn btn-primary">+ Nova Receita</Link>
+          {isMaster && <Link to="/receitas/nova" className="btn btn-primary">+ Nova Receita</Link>}
         </div>
       </div>
 
@@ -121,13 +123,15 @@ export default function SubReceitasLista() {
               onChange={e => setSearch(e.target.value)}
             />
           </div>
-          <select className="filter-select" value={sortBy} onChange={e => setSortBy(e.target.value)}>
-            <option value="nome">Ordenar: Nome</option>
-            <option value="cmv-asc">CMV: menor primeiro</option>
-            <option value="cmv-desc">CMV: maior primeiro</option>
-            <option value="preco-asc">Preço: menor primeiro</option>
-            <option value="preco-desc">Preço: maior primeiro</option>
-          </select>
+          {isMaster && (
+            <select className="filter-select" value={sortBy} onChange={e => setSortBy(e.target.value)}>
+              <option value="nome">Ordenar: Nome</option>
+              <option value="cmv-asc">CMV: menor primeiro</option>
+              <option value="cmv-desc">CMV: maior primeiro</option>
+              <option value="preco-asc">Preço: menor primeiro</option>
+              <option value="preco-desc">Preço: maior primeiro</option>
+            </select>
+          )}
           {(search || catFilter !== 'todas') && (
             <span style={{ fontSize: '.84rem', color: 'var(--muted)', whiteSpace: 'nowrap' }}>
               {filtered.length} resultado{filtered.length !== 1 ? 's' : ''}
@@ -159,12 +163,16 @@ export default function SubReceitasLista() {
       ) : (
         <div className="cards-grid">
           {filtered.map(item => (
-            <RecipeCard
-              key={item.id}
-              item={item}
-              editHref={`/receitas/${item.id}/editar`}
-              onDelete={handleDelete}
-            />
+            isMaster ? (
+              <RecipeCard
+                key={item.id}
+                item={item}
+                editHref={`/receitas/${item.id}/editar`}
+                onDelete={handleDelete}
+              />
+            ) : (
+              <RecipeCardOperacao key={item.id} item={item} />
+            )
           ))}
         </div>
       )}

@@ -40,3 +40,6 @@ build/
 # OS
 .DS_Store
 Thumbs.db
+
+# Backups do banco (dados reais, nunca versionar)
+backups/

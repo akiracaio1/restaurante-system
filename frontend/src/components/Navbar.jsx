@@ -3,7 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
 export default function Navbar() {
-  const { logout, email } = useAuth()
+  const { logout, email, isMaster } = useAuth()
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const dropRef = useRef(null)
@@ -27,7 +27,7 @@ export default function Navbar() {
 
   return (
     <nav className="navbar">
-      <NavLink to="/" className="navbar-brand">
+      <NavLink to={isMaster ? '/' : '/receitas'} className="navbar-brand">
         <span className="brand-icon">🍽️</span>
         <span className="brand-name">
           Restaurante<span className="brand-accent">Pro</span>
@@ -35,13 +35,15 @@ export default function Navbar() {
       </NavLink>
 
       <div className="navbar-links">
-        <NavLink
-          to="/"
-          end
-          className={({ isActive }) => 'nav-link' + (isActive ? ' active' : '')}
-        >
-          🏠 <span className="nav-link-text">Dashboard</span>
-        </NavLink>
+        {isMaster && (
+          <NavLink
+            to="/"
+            end
+            className={({ isActive }) => 'nav-link' + (isActive ? ' active' : '')}
+          >
+            🏠 <span className="nav-link-text">Dashboard</span>
+          </NavLink>
+        )}
         <NavLink
           to="/ingredientes"
           className={({ isActive }) => 'nav-link' + (isActive ? ' active' : '')}
@@ -54,18 +56,28 @@ export default function Navbar() {
         >
           🍽️ <span className="nav-link-text">Receitas</span>
         </NavLink>
-        <NavLink
-          to="/compras"
-          className={({ isActive }) => 'nav-link' + (isActive ? ' active' : '')}
-        >
-          🛒 <span className="nav-link-text">Compras</span>
-        </NavLink>
-        <NavLink
-          to="/estoque"
-          className={({ isActive }) => 'nav-link' + (isActive ? ' active' : '')}
-        >
-          📦 <span className="nav-link-text">Estoque</span>
-        </NavLink>
+        {isMaster && (
+          <>
+            <NavLink
+              to="/compras"
+              className={({ isActive }) => 'nav-link' + (isActive ? ' active' : '')}
+            >
+              🛒 <span className="nav-link-text">Compras</span>
+            </NavLink>
+            <NavLink
+              to="/estoque"
+              className={({ isActive }) => 'nav-link' + (isActive ? ' active' : '')}
+            >
+              📦 <span className="nav-link-text">Estoque</span>
+            </NavLink>
+            <NavLink
+              to="/usuarios"
+              className={({ isActive }) => 'nav-link' + (isActive ? ' active' : '')}
+            >
+              👥 <span className="nav-link-text">Usuários</span>
+            </NavLink>
+          </>
+        )}
       </div>
 
       <div className="nav-user" ref={dropRef}>
@@ -75,6 +87,9 @@ export default function Navbar() {
         {open && (
           <div className="nav-dropdown">
             <div className="nav-dropdown-email">👤 {email || 'Usuário'}</div>
+            <div className="nav-dropdown-email" style={{ fontSize: '.75rem', opacity: .8 }}>
+              Perfil: {isMaster ? 'Master' : 'Operação'}
+            </div>
             <hr className="nav-dropdown-divider" />
             <button className="nav-dropdown-item" onClick={handleLogout}>
               Sair

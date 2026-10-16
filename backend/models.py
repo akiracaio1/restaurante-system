@@ -1,17 +1,29 @@
 import json
 from datetime import datetime
 
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, Text, UniqueConstraint, JSON, Date, DateTime, Boolean
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, Text, UniqueConstraint, CheckConstraint, JSON, Date, DateTime, Boolean, text
 from sqlalchemy.orm import relationship
 from database import Base
+
+ROLE_MASTER = "master"
+ROLE_OPERACAO = "operacao"
+ROLES = (ROLE_MASTER, ROLE_OPERACAO)
 
 
 class User(Base):
     __tablename__ = "users"
+    __table_args__ = (CheckConstraint("role IN ('master', 'operacao')", name="ck_users_role"),)
 
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String(255), unique=True, nullable=False, index=True)
     hashed_password = Column(String(255), nullable=False)
+
+    # Perfil de acesso. Nunca vem do cliente nem do token: é lido do banco a cada requisição.
+    role = Column(String(20), nullable=False, default=ROLE_MASTER, server_default=ROLE_MASTER)
+    # Conta-base dona dos dados (id do usuário que criou o restaurante). Usuários
+    # Master e Operação do mesmo restaurante compartilham o mesmo account_id.
+    account_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    is_active = Column(Boolean, nullable=False, default=True, server_default=text("true"))
 
     ingredients = relationship("Ingredient", back_populates="owner", cascade="all, delete-orphan")
     recipes = relationship("Recipe", back_populates="owner", cascade="all, delete-orphan")

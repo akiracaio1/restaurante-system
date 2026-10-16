@@ -112,7 +112,24 @@ export default function ReceitaCalculadora() {
       </div>
 
       {result && (
-        <div className="card" style={{ marginTop: '1.5rem', padding: 0, overflow: 'auto' }}>
+        <div className="card" style={{ marginTop: '1.5rem', display: 'flex', flexWrap: 'wrap', gap: '.5rem 2rem' }}>
+          <div>
+            <div className="recipe-card-label">Rendimento estimado</div>
+            <div style={{ fontWeight: 800, fontSize: '1.25rem' }}>
+              {fmtQty(result.calculated_yield)} {result.yield_unit}
+            </div>
+          </div>
+          <div>
+            <div className="recipe-card-label">Receita base rende</div>
+            <div style={{ fontWeight: 600 }}>
+              {fmtQty(result.base_yield)} {result.yield_unit}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {result && (
+        <div className="card" style={{ marginTop: '1rem', padding: 0, overflow: 'auto' }}>
           <table className="ing-table" style={{ margin: 0 }}>
             <thead>
               <tr>

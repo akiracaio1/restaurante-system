@@ -73,6 +73,50 @@ A interface sobe em **http://localhost:5173**
 
 ---
 
+## Perfis de acesso
+
+| Perfil | Acessa |
+|---|---|
+| **Master** | Tudo: custos, preços, CMV, compras, fornecedores, estoque, canais de venda, relatórios e administração de usuários. |
+| **Operação** | Somente leitura de receitas (ingredientes, quantidades, descrição, rendimento), lista de ingredientes (nome, unidade, aproveitamento) e **calculadora de proporção**. Nenhum valor financeiro. |
+
+### Criar e vincular usuários
+
+- **Contas já existentes** viram Master automaticamente e continuam com todos os dados.
+- **Master → menu Usuários**: cria usuário (e-mail, senha inicial, perfil), troca o perfil, redefine a senha ou desativa. Todo usuário criado ali entra **no mesmo restaurante** (mesmos dados) de quem o criou.
+- **Sócio**: crie como Master. **Funcionárias**: crie como Operação.
+- O cadastro público foi fechado: só o primeiro usuário de um banco vazio se cadastra sozinho (`POST /api/auth/register`) e já nasce Master. Um Master não consegue remover o próprio acesso.
+- Defina `JWT_SECRET_KEY` no servidor. Sem ela, o app usa uma chave aleatória por processo e os logins caem a cada reinício.
+
+### Como a restrição é garantida
+
+1. **Servidor:** o perfil é lido do banco a cada requisição (nunca do token). Toda rota é *somente Master* por padrão (`get_current_user`); só ficam abertas à Operação as rotas que declaram `get_operational_context`. A Operação recebe modelos de resposta que nem possuem campos financeiros.
+2. **Banco:** as requisições da Operação rodam sob o papel `operacao_ro` (`SET LOCAL ROLE`), com `SELECT` apenas nas colunas não financeiras de ingredientes e receitas e política RLS por restaurante. O Postgres recusa o resto mesmo que o código erre. A inicialização verifica isso e, se falhar, bloqueia a Operação (503) em vez de liberar. RLS também fica ativo em todas as tabelas, fechando a API de dados do Supabase.
+
+### Testes
+
+```bash
+cd backend
+pip install -r requirements-dev.txt
+# banco descartável: o nome precisa conter "test" (os testes apagam as tabelas) e o
+# usuário precisa poder criar papéis, como o `postgres` do Supabase
+set TEST_DATABASE_URL=postgresql+asyncpg://usuario:senha@127.0.0.1:5432/restaurante_test
+pytest
+```
+
+### Backup e restauração
+
+```bash
+cd backend
+# DATABASE_URL vem do ambiente ou de backend/.env (arquivo ignorado pelo git)
+python scripts/db_backup.py backup                              # grava em backups/restaurante-AAAAMMDD-HHMMSS
+python scripts/db_backup.py restore backups/restaurante-...     # só em tabelas vazias; --force sobrescreve
+```
+
+O backup é uma foto consistente (um CSV por tabela, com contagens e checksums), conferida ao final. A restauração valida os checksums e as contagens. A pasta `backups/` é ignorada pelo git: ela contém dados reais, então guarde uma cópia fora do computador (ex.: nuvem). O plano gratuito do Supabase não faz backup automático.
+
+---
+
 ## Funcionalidades — Fase 1
 
 ### Ingredientes

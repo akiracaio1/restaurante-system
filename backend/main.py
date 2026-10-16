@@ -1,10 +1,12 @@
 import json
+import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
 from database import engine, Base
+from rbac_db import apply_rbac_migrations
 from routers import ingredients, recipes
 from routers import auth as auth_router
 from routers import purchases as purchases_router
@@ -12,7 +14,10 @@ from routers import stock as stock_router
 from routers import channels as channels_router
 from routers import categories as categories_router
 from routers import suppliers as suppliers_router
+from routers import users as users_router
 import models  # noqa: F401 — registers all models before create_all
+
+logging.basicConfig(level=logging.INFO)
 
 _NEW_COLUMNS = [
     "ALTER TABLE ingredients ADD COLUMN purchase_unit VARCHAR(50)",
@@ -159,6 +164,9 @@ async def lifespan(app: FastAPI):
                     pass
     except Exception:
         pass
+
+    # Perfis de acesso (Master / Operação): colunas, RLS e papel restrito do banco.
+    await apply_rbac_migrations(engine)
     yield
 
 
@@ -180,6 +188,7 @@ app.include_router(stock_router.router, prefix="/api/estoque", tags=["Estoque"])
 app.include_router(channels_router.router, prefix="/api/canais", tags=["Canais de Venda"])
 app.include_router(categories_router.router, prefix="/api/categorias", tags=["Categorias"])
 app.include_router(suppliers_router.router, prefix="/api/fornecedores", tags=["Fornecedores"])
+app.include_router(users_router.router, prefix="/api/usuarios", tags=["Usuários"])
 
 
 @app.get("/")

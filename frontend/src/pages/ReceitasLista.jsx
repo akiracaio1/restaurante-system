@@ -1,9 +1,11 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { receitasAPI } from '../api'
-import RecipeCard, { CAT_ICON } from '../components/RecipeCard'
+import RecipeCard, { RecipeCardOperacao, CAT_ICON } from '../components/RecipeCard'
+import { useAuth } from '../context/AuthContext'
 
 export default function ReceitasLista() {
+  const { isMaster } = useAuth()
   const [items, setItems]     = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError]     = useState('')
@@ -84,10 +86,10 @@ export default function ReceitasLista() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: '.6rem' }}>
-          <Link to="/categorias" className="btn btn-outline">🏷️ Categorias</Link>
-          <Link to="/canais" className="btn btn-outline">⚙️ Canais de Venda</Link>
+          {isMaster && <Link to="/categorias" className="btn btn-outline">🏷️ Categorias</Link>}
+          {isMaster && <Link to="/canais" className="btn btn-outline">⚙️ Canais de Venda</Link>}
           <Link to="/receitas/sub-receitas" className="btn btn-outline">🔗 Sub-Receitas</Link>
-          <Link to="/receitas/nova" className="btn btn-primary">+ Nova Receita</Link>
+          {isMaster && <Link to="/receitas/nova" className="btn btn-primary">+ Nova Receita</Link>}
         </div>
       </div>
 
@@ -128,13 +130,15 @@ export default function ReceitasLista() {
               onChange={e => setSearch(e.target.value)}
             />
           </div>
-          <select className="filter-select" value={sortBy} onChange={e => setSortBy(e.target.value)}>
-            <option value="nome">Ordenar: Nome</option>
-            <option value="cmv-asc">CMV: menor primeiro</option>
-            <option value="cmv-desc">CMV: maior primeiro</option>
-            <option value="preco-asc">Preço: menor primeiro</option>
-            <option value="preco-desc">Preço: maior primeiro</option>
-          </select>
+          {isMaster && (
+            <select className="filter-select" value={sortBy} onChange={e => setSortBy(e.target.value)}>
+              <option value="nome">Ordenar: Nome</option>
+              <option value="cmv-asc">CMV: menor primeiro</option>
+              <option value="cmv-desc">CMV: maior primeiro</option>
+              <option value="preco-asc">Preço: menor primeiro</option>
+              <option value="preco-desc">Preço: maior primeiro</option>
+            </select>
+          )}
           {(search || catFilter !== 'todas') && (
             <span style={{ fontSize: '.84rem', color: 'var(--muted)', whiteSpace: 'nowrap' }}>
               {filtered.length} resultado{filtered.length !== 1 ? 's' : ''}
@@ -150,11 +154,13 @@ export default function ReceitasLista() {
           <div className="empty-state">
             <span className="empty-icon">📋</span>
             <p className="empty-text">Nenhuma receita cadastrada</p>
-            <p className="empty-sub">
-              <Link to="/receitas/nova" style={{ color: 'var(--orange)', fontWeight: 700 }}>
-                Crie sua primeira receita
-              </Link>
-            </p>
+            {isMaster && (
+              <p className="empty-sub">
+                <Link to="/receitas/nova" style={{ color: 'var(--orange)', fontWeight: 700 }}>
+                  Crie sua primeira receita
+                </Link>
+              </p>
+            )}
           </div>
         </div>
       ) : filtered.length === 0 ? (
@@ -168,12 +174,16 @@ export default function ReceitasLista() {
       ) : (
         <div className="cards-grid">
           {filtered.map(item => (
-            <RecipeCard
-              key={item.id}
-              item={item}
-              editHref={`/receitas/${item.id}/editar`}
-              onDelete={handleDelete}
-            />
+            isMaster ? (
+              <RecipeCard
+                key={item.id}
+                item={item}
+                editHref={`/receitas/${item.id}/editar`}
+                onDelete={handleDelete}
+              />
+            ) : (
+              <RecipeCardOperacao key={item.id} item={item} />
+            )
           ))}
         </div>
       )}

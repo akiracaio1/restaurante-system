@@ -20,7 +20,7 @@ async def list_suppliers(
 ):
     result = await db.execute(
         select(models.Supplier)
-        .where(models.Supplier.user_id == current_user.id)
+        .where(models.Supplier.user_id == current_user.account_id)
         .order_by(models.Supplier.name)
     )
     suppliers = result.scalars().all()
@@ -33,7 +33,7 @@ async def list_suppliers(
         )
         .join(models.PurchaseItem, models.PurchaseItem.purchase_id == models.Purchase.id)
         .where(
-            models.Purchase.user_id == current_user.id,
+            models.Purchase.user_id == current_user.account_id,
             models.Purchase.supplier_id.isnot(None),
         )
         .group_by(models.Purchase.supplier_id)
@@ -43,7 +43,7 @@ async def list_suppliers(
     count_result = await db.execute(
         select(models.Purchase.supplier_id, func.count(func.distinct(models.Purchase.id)))
         .where(
-            models.Purchase.user_id == current_user.id,
+            models.Purchase.user_id == current_user.account_id,
             models.Purchase.supplier_id.isnot(None),
         )
         .group_by(models.Purchase.supplier_id)
@@ -78,13 +78,13 @@ async def create_supplier(
 ):
     dup = await db.execute(
         select(models.Supplier).where(
-            models.Supplier.user_id == current_user.id,
+            models.Supplier.user_id == current_user.account_id,
             models.Supplier.name == data.name,
         )
     )
     if dup.scalar_one_or_none():
         raise HTTPException(400, "Fornecedor com este nome já existe")
-    obj = models.Supplier(**data.model_dump(), user_id=current_user.id)
+    obj = models.Supplier(**data.model_dump(), user_id=current_user.account_id)
     db.add(obj)
     await db.commit()
     await db.refresh(obj)
@@ -100,7 +100,7 @@ async def get_supplier(
     result = await db.execute(
         select(models.Supplier).where(
             models.Supplier.id == supplier_id,
-            models.Supplier.user_id == current_user.id,
+            models.Supplier.user_id == current_user.account_id,
         )
     )
     obj = result.scalar_one_or_none()
@@ -119,7 +119,7 @@ async def update_supplier(
     result = await db.execute(
         select(models.Supplier).where(
             models.Supplier.id == supplier_id,
-            models.Supplier.user_id == current_user.id,
+            models.Supplier.user_id == current_user.account_id,
         )
     )
     obj = result.scalar_one_or_none()
@@ -128,7 +128,7 @@ async def update_supplier(
 
     dup = await db.execute(
         select(models.Supplier).where(
-            models.Supplier.user_id == current_user.id,
+            models.Supplier.user_id == current_user.account_id,
             models.Supplier.name == data.name,
             models.Supplier.id != supplier_id,
         )
@@ -152,7 +152,7 @@ async def delete_supplier(
     result = await db.execute(
         select(models.Supplier).where(
             models.Supplier.id == supplier_id,
-            models.Supplier.user_id == current_user.id,
+            models.Supplier.user_id == current_user.account_id,
         )
     )
     obj = result.scalar_one_or_none()
@@ -171,7 +171,7 @@ async def supplier_purchases(
     supplier_check = await db.execute(
         select(models.Supplier).where(
             models.Supplier.id == supplier_id,
-            models.Supplier.user_id == current_user.id,
+            models.Supplier.user_id == current_user.account_id,
         )
     )
     if not supplier_check.scalar_one_or_none():
@@ -180,7 +180,7 @@ async def supplier_purchases(
     result = await db.execute(
         select(models.Purchase)
         .where(
-            models.Purchase.user_id == current_user.id,
+            models.Purchase.user_id == current_user.account_id,
             models.Purchase.supplier_id == supplier_id,
         )
         .options(

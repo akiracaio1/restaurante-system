@@ -42,6 +42,57 @@ export function cmvLabel(v) {
   return 'Alto'
 }
 
+// Cartão do perfil Operação: o servidor não envia preço, custo nem CMV, então
+// aqui só existem nome, categoria, rendimento e ações de consulta.
+export function RecipeCardOperacao({ item }) {
+  const nIng = item.ingredients?.length ?? 0
+  const nSub = item.sub_recipes?.length ?? 0
+  return (
+    <div className="recipe-card">
+      <div className="recipe-card-header">
+        <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
+          <span className={`cat-badge ${CAT_CLASS[item.category] || 'cat-outro'}`}>
+            {CAT_ICON[item.category] || '📦'} {item.category}
+          </span>
+          {nSub > 0 && (
+            <span className="badge" style={{ background: 'var(--orange)', color: '#fff', fontSize: '.7rem' }}>
+              🔗 {nSub} sub-receita{nSub !== 1 ? 's' : ''}
+            </span>
+          )}
+        </div>
+        <div className="recipe-card-name">{item.name}</div>
+        {item.description && (
+          <div className="recipe-card-desc">{item.description}</div>
+        )}
+      </div>
+
+      <div className="recipe-card-body">
+        <div className="recipe-card-row">
+          <span className="recipe-card-label">Rendimento</span>
+          <span className="recipe-card-value">
+            {item.yield_portions} {item.stock_unit || (item.yield_portions === 1 ? 'porção' : 'porções')}
+          </span>
+        </div>
+        <div className="recipe-card-row">
+          <span className="recipe-card-label">Ingredientes</span>
+          <span className="recipe-card-value">{nIng}</span>
+        </div>
+      </div>
+
+      <div className="recipe-card-actions">
+        {item.is_proportional && (
+          <Link to={`/receitas/${item.id}/calculadora`} className="btn btn-sm btn-secondary">
+            🧮 Calculadora
+          </Link>
+        )}
+        <Link to={`/receitas/${item.id}`} className="btn btn-sm btn-outline">
+          Ver receita
+        </Link>
+      </div>
+    </div>
+  )
+}
+
 export default function RecipeCard({ item, editHref, onDelete }) {
   return (
     <div className="recipe-card">

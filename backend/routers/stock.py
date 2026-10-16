@@ -32,14 +32,14 @@ async def list_stock(
 ):
     ing_result = await db.execute(
         select(models.Ingredient)
-        .where(models.Ingredient.user_id == current_user.id)
+        .where(models.Ingredient.user_id == current_user.account_id)
         .order_by(models.Ingredient.name)
     )
     ingredients = ing_result.scalars().all()
 
     stock_result = await db.execute(
         select(models.Stock)
-        .where(models.Stock.user_id == current_user.id)
+        .where(models.Stock.user_id == current_user.account_id)
     )
     stock_by_ing = {s.ingredient_id: s for s in stock_result.scalars().all()}
 
@@ -67,7 +67,7 @@ async def list_movements(
     result = await db.execute(
         select(models.StockMovement)
         .where(
-            models.StockMovement.user_id == current_user.id,
+            models.StockMovement.user_id == current_user.account_id,
             models.StockMovement.ingredient_id == ingredient_id,
         )
         .options(selectinload(models.StockMovement.ingredient))
@@ -98,7 +98,7 @@ async def adjust_stock(
     stock_result = await db.execute(
         select(models.Stock)
         .where(
-            models.Stock.user_id == current_user.id,
+            models.Stock.user_id == current_user.account_id,
             models.Stock.ingredient_id == ingredient_id,
         )
     )
@@ -108,13 +108,13 @@ async def adjust_stock(
         ing_result = await db.execute(
             select(models.Ingredient).where(
                 models.Ingredient.id == ingredient_id,
-                models.Ingredient.user_id == current_user.id,
+                models.Ingredient.user_id == current_user.account_id,
             )
         )
         if not ing_result.scalar_one_or_none():
             raise HTTPException(404, "Ingrediente não encontrado")
         stock = models.Stock(
-            user_id=current_user.id,
+            user_id=current_user.account_id,
             ingredient_id=ingredient_id,
             quantity=data.quantity,
             updated_at=datetime.utcnow(),
@@ -125,7 +125,7 @@ async def adjust_stock(
         stock.updated_at = datetime.utcnow()
 
     movement = models.StockMovement(
-        user_id=current_user.id,
+        user_id=current_user.account_id,
         ingredient_id=ingredient_id,
         type='ajuste',
         quantity=data.quantity,
@@ -138,7 +138,7 @@ async def adjust_stock(
     result = await db.execute(
         select(models.Stock)
         .where(
-            models.Stock.user_id == current_user.id,
+            models.Stock.user_id == current_user.account_id,
             models.Stock.ingredient_id == ingredient_id,
         )
         .options(selectinload(models.Stock.ingredient))
@@ -164,14 +164,14 @@ async def list_recipe_stock(
 ):
     recipe_result = await db.execute(
         select(models.Recipe)
-        .where(models.Recipe.user_id == current_user.id)
+        .where(models.Recipe.user_id == current_user.account_id)
         .order_by(models.Recipe.name)
     )
     recipes = recipe_result.scalars().all()
 
     stock_result = await db.execute(
         select(models.RecipeStock)
-        .where(models.RecipeStock.user_id == current_user.id)
+        .where(models.RecipeStock.user_id == current_user.account_id)
     )
     stock_by_recipe = {s.recipe_id: s for s in stock_result.scalars().all()}
 
@@ -198,7 +198,7 @@ async def list_recipe_movements(
     result = await db.execute(
         select(models.RecipeStockMovement)
         .where(
-            models.RecipeStockMovement.user_id == current_user.id,
+            models.RecipeStockMovement.user_id == current_user.account_id,
             models.RecipeStockMovement.recipe_id == recipe_id,
         )
         .options(selectinload(models.RecipeStockMovement.recipe))
@@ -229,7 +229,7 @@ async def adjust_recipe_stock(
     stock_result = await db.execute(
         select(models.RecipeStock)
         .where(
-            models.RecipeStock.user_id == current_user.id,
+            models.RecipeStock.user_id == current_user.account_id,
             models.RecipeStock.recipe_id == recipe_id,
         )
     )
@@ -239,13 +239,13 @@ async def adjust_recipe_stock(
         recipe_result = await db.execute(
             select(models.Recipe).where(
                 models.Recipe.id == recipe_id,
-                models.Recipe.user_id == current_user.id,
+                models.Recipe.user_id == current_user.account_id,
             )
         )
         if not recipe_result.scalar_one_or_none():
             raise HTTPException(404, "Receita não encontrada")
         stock = models.RecipeStock(
-            user_id=current_user.id,
+            user_id=current_user.account_id,
             recipe_id=recipe_id,
             quantity=data.quantity,
             updated_at=datetime.utcnow(),
@@ -256,7 +256,7 @@ async def adjust_recipe_stock(
         stock.updated_at = datetime.utcnow()
 
     movement = models.RecipeStockMovement(
-        user_id=current_user.id,
+        user_id=current_user.account_id,
         recipe_id=recipe_id,
         type='ajuste',
         quantity=data.quantity,
@@ -269,7 +269,7 @@ async def adjust_recipe_stock(
     result = await db.execute(
         select(models.RecipeStock)
         .where(
-            models.RecipeStock.user_id == current_user.id,
+            models.RecipeStock.user_id == current_user.account_id,
             models.RecipeStock.recipe_id == recipe_id,
         )
         .options(selectinload(models.RecipeStock.recipe))

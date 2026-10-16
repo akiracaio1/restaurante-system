@@ -1,15 +1,80 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, load_only
 from typing import List
 
 from database import get_db
-from auth import get_current_user
+from auth import get_current_user, get_operational_context, OperationalContext
 import models
 import schemas
 
 router = APIRouter()
+
+
+def _operational_options():
+    """Carregamento enxuto, só com colunas liberadas ao papel restrito do banco.
+
+    Usado pelo perfil Operação (e pela calculadora): nenhuma coluna de custo ou
+    preço é sequer consultada.
+    """
+    R, RI, RS, I = models.Recipe, models.RecipeIngredient, models.RecipeSubRecipe, models.Ingredient
+    return [
+        selectinload(R.recipe_ingredients)
+        .load_only(RI.id, RI.recipe_id, RI.ingredient_id, RI.quantity)
+        .selectinload(RI.ingredient)
+        .load_only(I.id, I.name, I.unit),
+        selectinload(R.sub_recipes)
+        .load_only(RS.id, RS.parent_recipe_id, RS.sub_recipe_id, RS.portions)
+        .selectinload(RS.sub_recipe)
+        .load_only(R.id, R.name),
+        selectinload(R.proportion_base_ingredient).load_only(I.id, I.name, I.unit),
+    ]
+
+
+def _operational_columns():
+    R = models.Recipe
+    return (
+        R.id, R.name, R.description, R.category, R.yield_portions, R.stock_unit,
+        R.is_proportional, R.proportion_base_ingredient_id,
+    )
+
+
+def _operational_query():
+    return select(models.Recipe).options(load_only(*_operational_columns()), *_operational_options())
+
+
+def build_operacao_response(recipe: models.Recipe) -> schemas.RecipeOperacaoResponse:
+    base = recipe.proportion_base_ingredient
+    return schemas.RecipeOperacaoResponse(
+        id=recipe.id,
+        name=recipe.name,
+        description=recipe.description,
+        category=recipe.category,
+        yield_portions=recipe.yield_portions,
+        stock_unit=recipe.stock_unit or "porção",
+        is_proportional=bool(recipe.is_proportional),
+        proportion_base_ingredient_id=recipe.proportion_base_ingredient_id,
+        proportion_base_ingredient_name=base.name if base else None,
+        ingredients=[
+            schemas.RecipeIngredientOperacaoResponse(
+                ingredient_id=ri.ingredient_id,
+                ingredient_name=ri.ingredient.name,
+                ingredient_unit=ri.ingredient.unit,
+                quantity=ri.quantity,
+            )
+            for ri in recipe.recipe_ingredients
+        ],
+        sub_recipes=[
+            schemas.SubRecipeOperacaoResponse(
+                id=sr.id,
+                sub_recipe_id=sr.sub_recipe_id,
+                sub_recipe_name=sr.sub_recipe.name,
+                portions=sr.portions,
+            )
+            for sr in recipe.sub_recipes
+        ],
+    )
 
 
 def build_response(recipe: models.Recipe) -> schemas.RecipeResponse:
@@ -130,18 +195,25 @@ def _eager_options():
     ]
 
 
-@router.get("/", response_model=List[schemas.RecipeResponse])
-async def list_recipes(
-    db: AsyncSession = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
-):
-    result = await db.execute(
-        select(models.Recipe)
-        .where(models.Recipe.user_id == current_user.id)
-        .options(*_eager_options())
+# response_model=None: o formato depende do perfil (Master = completo, Operação =
+# sem nenhum campo financeiro). Cada perfil devolve a sua própria classe.
+@router.get("/", response_model=None)
+async def list_recipes(ctx: OperationalContext = Depends(get_operational_context)):
+    if ctx.is_master:
+        result = await ctx.db.execute(
+            select(models.Recipe)
+            .where(models.Recipe.user_id == ctx.account_id)
+            .options(*_eager_options())
+            .order_by(models.Recipe.name)
+        )
+        return [build_response(r) for r in result.scalars().all()]
+
+    result = await ctx.db.execute(
+        _operational_query()
+        .where(models.Recipe.user_id == ctx.account_id)
         .order_by(models.Recipe.name)
     )
-    return [build_response(r) for r in result.scalars().all()]
+    return [build_operacao_response(r) for r in result.scalars().all()]
 
 
 def _validate_proportion(data: schemas.RecipeBase, ingredients: List[schemas.RecipeIngredientInput]):
@@ -163,14 +235,14 @@ async def create_recipe(
 
     dup = await db.execute(
         select(models.Recipe).where(
-            models.Recipe.user_id == current_user.id,
+            models.Recipe.user_id == current_user.account_id,
             models.Recipe.name == data.name,
         )
     )
     if dup.scalar_one_or_none():
         raise HTTPException(400, "Receita com este nome já existe")
 
-    recipe = models.Recipe(**data.model_dump(exclude={"ingredients"}), user_id=current_user.id)
+    recipe = models.Recipe(**data.model_dump(exclude={"ingredients"}), user_id=current_user.account_id)
     db.add(recipe)
     await db.flush()
 
@@ -178,7 +250,7 @@ async def create_recipe(
         ing_check = await db.execute(
             select(models.Ingredient).where(
                 models.Ingredient.id == ing.ingredient_id,
-                models.Ingredient.user_id == current_user.id,
+                models.Ingredient.user_id == current_user.account_id,
             )
         )
         if not ing_check.scalar_one_or_none():
@@ -199,21 +271,31 @@ async def create_recipe(
     return build_response(result.scalar_one())
 
 
-@router.get("/{recipe_id}", response_model=schemas.RecipeResponse)
+@router.get("/{recipe_id}", response_model=None)
 async def get_recipe(
     recipe_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
+    ctx: OperationalContext = Depends(get_operational_context),
 ):
-    result = await db.execute(
-        select(models.Recipe)
-        .where(models.Recipe.id == recipe_id, models.Recipe.user_id == current_user.id)
-        .options(*_eager_options())
+    if ctx.is_master:
+        result = await ctx.db.execute(
+            select(models.Recipe)
+            .where(models.Recipe.id == recipe_id, models.Recipe.user_id == ctx.account_id)
+            .options(*_eager_options())
+        )
+        recipe = result.scalar_one_or_none()
+        if not recipe:
+            raise HTTPException(404, "Receita não encontrada")
+        return build_response(recipe)
+
+    result = await ctx.db.execute(
+        _operational_query().where(
+            models.Recipe.id == recipe_id, models.Recipe.user_id == ctx.account_id
+        )
     )
     recipe = result.scalar_one_or_none()
     if not recipe:
         raise HTTPException(404, "Receita não encontrada")
-    return build_response(recipe)
+    return build_operacao_response(recipe)
 
 
 @router.put("/{recipe_id}", response_model=schemas.RecipeResponse)
@@ -225,7 +307,7 @@ async def update_recipe(
 ):
     result = await db.execute(
         select(models.Recipe)
-        .where(models.Recipe.id == recipe_id, models.Recipe.user_id == current_user.id)
+        .where(models.Recipe.id == recipe_id, models.Recipe.user_id == current_user.account_id)
         .options(*_eager_options())
     )
     recipe = result.scalar_one_or_none()
@@ -236,7 +318,7 @@ async def update_recipe(
 
     dup = await db.execute(
         select(models.Recipe).where(
-            models.Recipe.user_id == current_user.id,
+            models.Recipe.user_id == current_user.account_id,
             models.Recipe.name == data.name,
             models.Recipe.id != recipe_id,
         )
@@ -254,7 +336,7 @@ async def update_recipe(
         ing_check = await db.execute(
             select(models.Ingredient).where(
                 models.Ingredient.id == ing.ingredient_id,
-                models.Ingredient.user_id == current_user.id,
+                models.Ingredient.user_id == current_user.account_id,
             )
         )
         if not ing_check.scalar_one_or_none():
@@ -283,7 +365,7 @@ async def delete_recipe(
     result = await db.execute(
         select(models.Recipe).where(
             models.Recipe.id == recipe_id,
-            models.Recipe.user_id == current_user.id,
+            models.Recipe.user_id == current_user.account_id,
         )
     )
     recipe = result.scalar_one_or_none()
@@ -303,7 +385,7 @@ async def update_stock_unit(
     result = await db.execute(
         select(models.Recipe).where(
             models.Recipe.id == recipe_id,
-            models.Recipe.user_id == current_user.id,
+            models.Recipe.user_id == current_user.account_id,
         )
     )
     recipe = result.scalar_one_or_none()
@@ -332,7 +414,7 @@ async def add_sub_recipe(
     result = await db.execute(
         select(models.Recipe).where(
             models.Recipe.id == recipe_id,
-            models.Recipe.user_id == current_user.id,
+            models.Recipe.user_id == current_user.account_id,
         )
     )
     if not result.scalar_one_or_none():
@@ -344,7 +426,7 @@ async def add_sub_recipe(
     result = await db.execute(
         select(models.Recipe).where(
             models.Recipe.id == data.sub_recipe_id,
-            models.Recipe.user_id == current_user.id,
+            models.Recipe.user_id == current_user.account_id,
         )
     )
     if not result.scalar_one_or_none():
@@ -373,7 +455,7 @@ async def remove_sub_recipe(
     result = await db.execute(
         select(models.Recipe).where(
             models.Recipe.id == recipe_id,
-            models.Recipe.user_id == current_user.id,
+            models.Recipe.user_id == current_user.account_id,
         )
     )
     if not result.scalar_one_or_none():
@@ -404,7 +486,7 @@ async def set_channel_price(
     result = await db.execute(
         select(models.Recipe).where(
             models.Recipe.id == recipe_id,
-            models.Recipe.user_id == current_user.id,
+            models.Recipe.user_id == current_user.account_id,
         )
     )
     if not result.scalar_one_or_none():
@@ -413,7 +495,7 @@ async def set_channel_price(
     result = await db.execute(
         select(models.SalesChannel).where(
             models.SalesChannel.id == channel_id,
-            models.SalesChannel.user_id == current_user.id,
+            models.SalesChannel.user_id == current_user.account_id,
         )
     )
     if not result.scalar_one_or_none():
@@ -423,7 +505,7 @@ async def set_channel_price(
         ing_check = await db.execute(
             select(models.Ingredient).where(
                 models.Ingredient.id == ei.ingredient_id,
-                models.Ingredient.user_id == current_user.id,
+                models.Ingredient.user_id == current_user.account_id,
             )
         )
         if not ing_check.scalar_one_or_none():
@@ -473,7 +555,7 @@ async def remove_channel_price(
     result = await db.execute(
         select(models.Recipe).where(
             models.Recipe.id == recipe_id,
-            models.Recipe.user_id == current_user.id,
+            models.Recipe.user_id == current_user.account_id,
         )
     )
     if not result.scalar_one_or_none():
@@ -497,13 +579,14 @@ async def remove_channel_price(
 async def calculate_proportion(
     recipe_id: int,
     data: schemas.ProportionCalculateInput,
-    db: AsyncSession = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
+    ctx: OperationalContext = Depends(get_operational_context),
 ):
-    result = await db.execute(
-        select(models.Recipe)
-        .where(models.Recipe.id == recipe_id, models.Recipe.user_id == current_user.id)
-        .options(*_eager_options())
+    # Carregamento enxuto para os dois perfis: a calculadora só usa nomes,
+    # unidades e quantidades, nunca custos.
+    result = await ctx.db.execute(
+        _operational_query().where(
+            models.Recipe.id == recipe_id, models.Recipe.user_id == ctx.account_id
+        )
     )
     recipe = result.scalar_one_or_none()
     if not recipe:
@@ -542,5 +625,8 @@ async def calculate_proportion(
         base_ingredient_name=base_ri.ingredient.name,
         base_ingredient_unit=base_ri.ingredient.unit,
         scale_factor=round(scale, 6),
+        base_yield=recipe.yield_portions,
+        calculated_yield=round(recipe.yield_portions * scale, 2),
+        yield_unit=recipe.stock_unit or "porção",
         ingredients=ingredients_resp,
     )

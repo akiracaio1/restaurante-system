@@ -1,6 +1,8 @@
 import axios from 'axios'
 
-const api = axios.create({ baseURL: 'https://restaurante-system-production-7b07.up.railway.app/api' })
+const api = axios.create({
+  baseURL: import.meta.env.VITE_API_URL || 'https://restaurante-system-production-7b07.up.railway.app/api',
+})
 
 api.interceptors.request.use(config => {
   const token = localStorage.getItem('token')
@@ -20,8 +22,14 @@ api.interceptors.response.use(
 )
 
 export const authAPI = {
-  login:    (data) => api.post('/auth/login', data),
-  register: (data) => api.post('/auth/register', data),
+  login: (data) => api.post('/auth/login', data),
+  me:    ()     => api.get('/auth/me'),
+}
+
+export const usuariosAPI = {
+  listar:    ()         => api.get('/usuarios/'),
+  criar:     (data)     => api.post('/usuarios/', data),
+  atualizar: (id, data) => api.put(`/usuarios/${id}`, data),
 }
 
 export const ingredientesAPI = {

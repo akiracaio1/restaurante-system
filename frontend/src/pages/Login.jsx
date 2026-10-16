@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
 export default function Login() {
@@ -75,8 +75,7 @@ export default function Login() {
         </form>
 
         <p className="auth-switch">
-          Não tem conta?{' '}
-          <Link to="/cadastro">Cadastre-se</Link>
+          Precisa de acesso? Peça a um usuário Master.
         </p>
       </div>
     </div>

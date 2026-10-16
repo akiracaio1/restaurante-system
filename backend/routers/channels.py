@@ -18,7 +18,7 @@ async def list_channels(
 ):
     result = await db.execute(
         select(models.SalesChannel)
-        .where(models.SalesChannel.user_id == current_user.id)
+        .where(models.SalesChannel.user_id == current_user.account_id)
         .order_by(models.SalesChannel.name)
     )
     return result.scalars().all()
@@ -32,13 +32,13 @@ async def create_channel(
 ):
     dup = await db.execute(
         select(models.SalesChannel).where(
-            models.SalesChannel.user_id == current_user.id,
+            models.SalesChannel.user_id == current_user.account_id,
             models.SalesChannel.name == data.name,
         )
     )
     if dup.scalar_one_or_none():
         raise HTTPException(400, "Canal de venda com este nome já existe")
-    obj = models.SalesChannel(**data.model_dump(), user_id=current_user.id)
+    obj = models.SalesChannel(**data.model_dump(), user_id=current_user.account_id)
     db.add(obj)
     await db.commit()
     await db.refresh(obj)
@@ -55,7 +55,7 @@ async def update_channel(
     result = await db.execute(
         select(models.SalesChannel).where(
             models.SalesChannel.id == channel_id,
-            models.SalesChannel.user_id == current_user.id,
+            models.SalesChannel.user_id == current_user.account_id,
         )
     )
     obj = result.scalar_one_or_none()
@@ -63,7 +63,7 @@ async def update_channel(
         raise HTTPException(404, "Canal de venda não encontrado")
     dup = await db.execute(
         select(models.SalesChannel).where(
-            models.SalesChannel.user_id == current_user.id,
+            models.SalesChannel.user_id == current_user.account_id,
             models.SalesChannel.name == data.name,
             models.SalesChannel.id != channel_id,
         )
@@ -86,7 +86,7 @@ async def delete_channel(
     result = await db.execute(
         select(models.SalesChannel).where(
             models.SalesChannel.id == channel_id,
-            models.SalesChannel.user_id == current_user.id,
+            models.SalesChannel.user_id == current_user.account_id,
         )
     )
     obj = result.scalar_one_or_none()
