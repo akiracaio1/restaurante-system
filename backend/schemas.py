@@ -85,6 +85,29 @@ class IngredientResponse(IngredientBase):
     model_config = {"from_attributes": True}
 
 
+class IngredientUsageRecipe(BaseModel):
+    recipe_id: int
+    recipe_name: str
+    category: str
+    quantity: float
+    is_sub_recipe: bool = False
+
+
+class IngredientUsageExtra(BaseModel):
+    recipe_id: int
+    recipe_name: str
+    channel_name: str
+    quantity: float
+
+
+class IngredientUsageResponse(BaseModel):
+    ingredient_id: int
+    ingredient_name: str
+    unit: str
+    recipes: List[IngredientUsageRecipe] = []
+    channel_extras: List[IngredientUsageExtra] = []
+
+
 # ── Recipes ───────────────────────────────────────────────────────────────────
 
 class RecipeIngredientInput(BaseModel):

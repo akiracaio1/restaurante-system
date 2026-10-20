@@ -126,6 +126,68 @@ async def get_ingredient(
     return _to_operacao_response(row)
 
 
+@router.get("/{ingredient_id}/receitas", response_model=schemas.IngredientUsageResponse)
+async def ingredient_usage(
+    ingredient_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Receitas (e custos extras de modalidades de venda) que usam o ingrediente."""
+    account = current_user.account_id
+    result = await db.execute(
+        select(models.Ingredient).where(
+            models.Ingredient.id == ingredient_id, models.Ingredient.user_id == account
+        )
+    )
+    ingredient = result.scalar_one_or_none()
+    if not ingredient:
+        raise HTTPException(404, "Ingrediente não encontrado")
+
+    rows = (await db.execute(
+        select(models.Recipe.id, models.Recipe.name, models.Recipe.category, models.RecipeIngredient.quantity)
+        .join(models.RecipeIngredient, models.RecipeIngredient.recipe_id == models.Recipe.id)
+        .where(models.RecipeIngredient.ingredient_id == ingredient_id, models.Recipe.user_id == account)
+        .order_by(models.Recipe.name)
+    )).all()
+    sub_ids = set()
+    if rows:
+        sub_ids = set((await db.execute(
+            select(models.RecipeSubRecipe.sub_recipe_id).where(
+                models.RecipeSubRecipe.sub_recipe_id.in_([r.id for r in rows])
+            )
+        )).scalars().all())
+
+    extras = (await db.execute(
+        select(models.Recipe.id, models.Recipe.name, models.SalesChannel.name.label("channel_name"),
+               models.RecipeChannelIngredient.quantity)
+        .join(models.RecipeChannelPrice, models.RecipeChannelPrice.recipe_id == models.Recipe.id)
+        .join(models.RecipeChannelIngredient,
+              models.RecipeChannelIngredient.recipe_channel_price_id == models.RecipeChannelPrice.id)
+        .join(models.SalesChannel, models.SalesChannel.id == models.RecipeChannelPrice.channel_id)
+        .where(models.RecipeChannelIngredient.ingredient_id == ingredient_id, models.Recipe.user_id == account)
+        .order_by(models.Recipe.name, models.SalesChannel.name)
+    )).all()
+
+    return schemas.IngredientUsageResponse(
+        ingredient_id=ingredient.id,
+        ingredient_name=ingredient.name,
+        unit=ingredient.unit,
+        recipes=[
+            schemas.IngredientUsageRecipe(
+                recipe_id=r.id, recipe_name=r.name, category=r.category,
+                quantity=r.quantity, is_sub_recipe=r.id in sub_ids,
+            )
+            for r in rows
+        ],
+        channel_extras=[
+            schemas.IngredientUsageExtra(
+                recipe_id=e.id, recipe_name=e.name, channel_name=e.channel_name, quantity=e.quantity,
+            )
+            for e in extras
+        ],
+    )
+
+
 @router.put("/{ingredient_id}", response_model=schemas.IngredientResponse)
 async def update_ingredient(
     ingredient_id: int,

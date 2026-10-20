@@ -4,6 +4,7 @@ import { ingredientesAPI } from '../api'
 import { useAuth } from '../context/AuthContext'
 
 const fmt = (v, d = 2) => `R$ ${Number(v).toFixed(d).replace('.', ',')}`
+const fmtNum = (v) => Number(v).toFixed(3).replace(/0+$/, '').replace(/\.$/, '').replace('.', ',')
 
 function yieldClass(pct) {
   if (pct > 100) return 'boost'
@@ -25,6 +26,7 @@ export default function IngredientesLista() {
   const [loading, setLoading] = useState(true)
   const [error, setError]     = useState('')
   const [success, setSuccess] = useState('')
+  const [usage, setUsage]     = useState(null) // { item, loading, data, error }
   const [search, setSearch]   = useState('')
 
   async function load() {
@@ -54,6 +56,16 @@ export default function IngredientesLista() {
     }
   }
 
+  async function openUsage(item) {
+    setUsage({ item, loading: true, data: null, error: '' })
+    try {
+      const { data } = await ingredientesAPI.receitas(item.id)
+      setUsage({ item, loading: false, data, error: '' })
+    } catch (err) {
+      setUsage({ item, loading: false, data: null, error: err.response?.data?.detail || 'Erro ao carregar as receitas.' })
+    }
+  }
+
   const filtered = useMemo(() =>
     items.filter(i => i.name.toLowerCase().includes(search.toLowerCase())),
     [items, search]
@@ -73,6 +85,89 @@ export default function IngredientesLista() {
 
       {error   && <div className="alert alert-error">{error}</div>}
       {success && <div className="alert alert-success">{success}</div>}
+
+      {usage && (
+        <div
+          onClick={() => setUsage(null)}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', overflow: 'auto',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
+          }}
+        >
+          <div className="form-card" style={{ maxWidth: '620px', width: '100%', margin: '1rem' }} onClick={e => e.stopPropagation()}>
+            <h2 style={{ marginBottom: '.25rem', fontSize: '1.1rem' }}>🍳 Receitas que usam {usage.item.name}</h2>
+            {usage.data && (
+              <p style={{ margin: '0 0 1rem', fontSize: '.85rem', color: 'var(--muted)' }}>
+                {usage.data.recipes.length} receita{usage.data.recipes.length !== 1 ? 's' : ''}
+                {usage.data.channel_extras.length > 0 && ` · ${usage.data.channel_extras.length} custo${usage.data.channel_extras.length !== 1 ? 's' : ''} extra${usage.data.channel_extras.length !== 1 ? 's' : ''} de venda`}
+              </p>
+            )}
+
+            {usage.loading && <div className="loading">Carregando…</div>}
+            {usage.error && <div className="alert alert-error">{usage.error}</div>}
+
+            {usage.data && usage.data.recipes.length === 0 && usage.data.channel_extras.length === 0 && (
+              <div className="alert" style={{ background: 'var(--surface)', color: 'var(--muted)', border: '1px solid var(--border)' }}>
+                Nenhuma receita usa este ingrediente.
+              </div>
+            )}
+
+            {usage.data && usage.data.recipes.length > 0 && (
+              <div className="card" style={{ padding: 0, overflow: 'auto', marginBottom: '1rem' }}>
+                <table className="ing-table" style={{ margin: 0 }}>
+                  <thead>
+                    <tr><th>Receita</th><th>Categoria</th><th>Quantidade</th></tr>
+                  </thead>
+                  <tbody>
+                    {usage.data.recipes.map(r => (
+                      <tr key={r.recipe_id}>
+                        <td style={{ fontWeight: 600 }}>
+                          <Link to={`/receitas/${r.recipe_id}/editar`} style={{ color: 'inherit' }}>{r.recipe_name}</Link>
+                          {r.is_sub_recipe && (
+                            <span className="badge" style={{ marginLeft: '.4rem', background: 'var(--orange)', color: '#fff', fontSize: '.68rem' }}>
+                              🔗 sub-receita
+                            </span>
+                          )}
+                        </td>
+                        <td>{r.category}</td>
+                        <td style={{ fontWeight: 700 }}>{fmtNum(r.quantity)} {usage.data.unit}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {usage.data && usage.data.channel_extras.length > 0 && (
+              <>
+                <p className="add-box-label">Usado como custo extra em modalidades de venda</p>
+                <div className="card" style={{ padding: 0, overflow: 'auto', marginBottom: '1rem' }}>
+                  <table className="ing-table" style={{ margin: 0 }}>
+                    <thead>
+                      <tr><th>Receita</th><th>Modalidade</th><th>Quantidade</th></tr>
+                    </thead>
+                    <tbody>
+                      {usage.data.channel_extras.map((e, i) => (
+                        <tr key={`${e.recipe_id}-${e.channel_name}-${i}`}>
+                          <td style={{ fontWeight: 600 }}>
+                            <Link to={`/receitas/${e.recipe_id}/editar`} style={{ color: 'inherit' }}>{e.recipe_name}</Link>
+                          </td>
+                          <td>{e.channel_name}</td>
+                          <td style={{ fontWeight: 700 }}>{fmtNum(e.quantity)} {usage.data.unit}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+
+            <div className="form-actions">
+              <button type="button" className="btn btn-ghost" onClick={() => setUsage(null)}>Fechar</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {!loading && items.length > 0 && (
         <div className="toolbar">
@@ -128,7 +223,13 @@ export default function IngredientesLista() {
             const isCalc           = (hasYieldFactor || hasProcessingCost) && item.real_unit_cost != null
 
             return (
-              <div key={item.id} className="ing-card">
+              <div
+                key={item.id}
+                className="ing-card"
+                title={isMaster ? 'Clique para ver as receitas que usam este ingrediente' : undefined}
+                style={isMaster ? { cursor: 'pointer' } : undefined}
+                onClick={isMaster ? (e => { if (!e.target.closest('a, button')) openUsage(item) }) : undefined}
+              >
                 <div className="ing-card-header">
                   <span className="ing-card-name">{item.name}</span>
                   <span className="badge badge-unit">{item.unit}</span>
