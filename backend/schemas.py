@@ -85,29 +85,6 @@ class IngredientResponse(IngredientBase):
     model_config = {"from_attributes": True}
 
 
-class IngredientMergeInput(BaseModel):
-    source_id: int  # o duplicado que será removido
-    dry_run: bool = False
-
-
-class IngredientMergeResponse(BaseModel):
-    dry_run: bool
-    target_id: int
-    target_name: str
-    source_id: int
-    source_name: str
-    unit: str
-    recipes_moved: List[str] = []
-    recipes_combined: List[str] = []  # receitas que usavam os dois: quantidades somadas
-    channel_prices_updated: int = 0
-    purchase_items_moved: int = 0
-    movements_moved: int = 0
-    stock_target_before: float = 0.0
-    stock_source_before: float = 0.0
-    stock_after: float = 0.0
-    base_recipes: List[str] = []  # receitas cujo ingrediente-base da calculadora mudou
-
-
 # ── Recipes ───────────────────────────────────────────────────────────────────
 
 class RecipeIngredientInput(BaseModel):
