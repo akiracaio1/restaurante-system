@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr, Field
-from typing import List, Optional
+from typing import List, Literal, Optional
 from datetime import date, datetime
 
 
@@ -410,6 +410,32 @@ class StockResponse(BaseModel):
 class StockAdjustInput(BaseModel):
     quantity: float
     notes: Optional[str] = None
+
+
+class InventoryItemInput(BaseModel):
+    type: Literal["ingrediente", "receita"]
+    id: int
+    quantity: float = Field(ge=0)
+
+
+class InventoryInput(BaseModel):
+    items: List[InventoryItemInput] = Field(min_length=1, max_length=2000)
+    notes: Optional[str] = None
+
+
+class InventoryChange(BaseModel):
+    type: str
+    id: int
+    name: str
+    unit: str
+    before: float
+    after: float
+
+
+class InventoryResponse(BaseModel):
+    updated: int
+    unchanged: int
+    changes: List[InventoryChange] = []
 
 
 class StockMovementResponse(BaseModel):

@@ -18,6 +18,7 @@ import ComprasForm from './pages/ComprasForm'
 import FornecedoresLista from './pages/FornecedoresLista'
 import FornecedorDetalhe from './pages/FornecedorDetalhe'
 import EstoqueLista from './pages/EstoqueLista'
+import EstoqueInventario from './pages/EstoqueInventario'
 import IngredienteHistorico from './pages/IngredienteHistorico'
 import UsuariosLista from './pages/UsuariosLista'
 
@@ -58,6 +59,7 @@ export default function App() {
                       <Route path="/fornecedores"              element={master(<FornecedoresLista />)} />
                       <Route path="/fornecedores/:id"          element={master(<FornecedorDetalhe />)} />
                       <Route path="/estoque"                   element={master(<EstoqueLista />)} />
+                      <Route path="/estoque/inventario"        element={master(<EstoqueInventario />)} />
                       <Route path="/usuarios"                  element={master(<UsuariosLista />)} />
 
                       {/* Consulta de receita (somente leitura) */}

@@ -88,6 +88,7 @@ export const estoqueAPI = {
   listar:        ()                   => api.get('/estoque/'),
   ajustar:       (ingredientId, data) => api.put(`/estoque/${ingredientId}`, data),
   movimentacoes: (ingredientId)       => api.get(`/estoque/movimentacoes/${ingredientId}`),
+  inventario:            (data)            => api.post('/estoque/inventario', data),
   listarReceitas:        ()                => api.get('/estoque/receitas/'),
   ajustarReceita:        (recipeId, data)  => api.put(`/estoque/receitas/${recipeId}`, data),
   movimentacoesReceita:  (recipeId)        => api.get(`/estoque/receitas/movimentacoes/${recipeId}`),

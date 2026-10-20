@@ -146,6 +146,94 @@ async def adjust_stock(
     return _to_response(result.scalar_one())
 
 
+def _fmt_qty(value: float) -> str:
+    return f"{value:.3f}".rstrip("0").rstrip(".").replace(".", ",") or "0"
+
+
+@router.post("/inventario", response_model=schemas.InventoryResponse)
+async def save_inventory(
+    data: schemas.InventoryInput,
+    db: AsyncSession = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Contagem física: define a quantidade de vários itens de uma vez, tudo ou nada."""
+    keys = [(i.type, i.id) for i in data.items]
+    if len(set(keys)) != len(keys):
+        raise HTTPException(400, "Há itens repetidos no inventário")
+
+    ing_ids = [i.id for i in data.items if i.type == "ingrediente"]
+    rec_ids = [i.id for i in data.items if i.type == "receita"]
+    account = current_user.account_id
+
+    ingredients, stocks, recipes, recipe_stocks = {}, {}, {}, {}
+    if ing_ids:
+        rows = await db.execute(
+            select(models.Ingredient).where(models.Ingredient.id.in_(ing_ids), models.Ingredient.user_id == account)
+        )
+        ingredients = {r.id: r for r in rows.scalars().all()}
+        rows = await db.execute(
+            select(models.Stock).where(models.Stock.user_id == account, models.Stock.ingredient_id.in_(ing_ids))
+        )
+        stocks = {r.ingredient_id: r for r in rows.scalars().all()}
+    if rec_ids:
+        rows = await db.execute(
+            select(models.Recipe).where(models.Recipe.id.in_(rec_ids), models.Recipe.user_id == account)
+        )
+        recipes = {r.id: r for r in rows.scalars().all()}
+        rows = await db.execute(
+            select(models.RecipeStock).where(models.RecipeStock.user_id == account, models.RecipeStock.recipe_id.in_(rec_ids))
+        )
+        recipe_stocks = {r.recipe_id: r for r in rows.scalars().all()}
+
+    for i in ing_ids:
+        if i not in ingredients:
+            raise HTTPException(404, f"Ingrediente ID {i} não encontrado")
+    for i in rec_ids:
+        if i not in recipes:
+            raise HTTPException(404, f"Receita ID {i} não encontrada")
+
+    now = datetime.utcnow()
+    changes: list[schemas.InventoryChange] = []
+    unchanged = 0
+    for item in data.items:
+        is_ing = item.type == "ingrediente"
+        current = (stocks if is_ing else recipe_stocks).get(item.id)
+        before = current.quantity if current else 0.0
+        if round(item.quantity, 6) == round(before, 6):
+            unchanged += 1
+            continue
+
+        note = f"Inventário: {_fmt_qty(before)} → {_fmt_qty(item.quantity)}"
+        if data.notes:
+            note += f" · {data.notes}"
+        if is_ing:
+            if current:
+                current.quantity, current.updated_at = item.quantity, now
+            else:
+                db.add(models.Stock(user_id=account, ingredient_id=item.id, quantity=item.quantity, updated_at=now))
+            db.add(models.StockMovement(
+                user_id=account, ingredient_id=item.id, type="ajuste",
+                quantity=item.quantity, reason="inventario", notes=note,
+            ))
+            obj, unit = ingredients[item.id], ingredients[item.id].unit
+        else:
+            if current:
+                current.quantity, current.updated_at = item.quantity, now
+            else:
+                db.add(models.RecipeStock(user_id=account, recipe_id=item.id, quantity=item.quantity, updated_at=now))
+            db.add(models.RecipeStockMovement(
+                user_id=account, recipe_id=item.id, type="ajuste",
+                quantity=item.quantity, reason="inventario", notes=note,
+            ))
+            obj, unit = recipes[item.id], recipes[item.id].stock_unit or "porção"
+        changes.append(schemas.InventoryChange(
+            type=item.type, id=item.id, name=obj.name, unit=unit, before=before, after=item.quantity,
+        ))
+
+    await db.commit()
+    return schemas.InventoryResponse(updated=len(changes), unchanged=unchanged, changes=changes)
+
+
 def _to_recipe_response(stock: models.RecipeStock) -> schemas.RecipeStockResponse:
     return schemas.RecipeStockResponse(
         id=stock.id,

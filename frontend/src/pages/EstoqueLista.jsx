@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { Link } from 'react-router-dom'
 import { estoqueAPI, receitasAPI } from '../api'
 
 const fmtQty = (v) => Number(v).toFixed(3).replace('.', ',')
@@ -112,6 +113,7 @@ export default function EstoqueLista() {
             {ingItems.length} ingrediente{ingItems.length !== 1 ? 's' : ''} · {recItems.length} receita{recItems.length !== 1 ? 's' : ''}
           </p>
         </div>
+        <Link to="/estoque/inventario" className="btn btn-primary">📋 Inventário</Link>
       </div>
 
       {error   && <div className="alert alert-error">{error}</div>}
