@@ -136,6 +136,10 @@ export default function IngredientesLista() {
                     <option key={i.id} value={i.id}>{i.name} ({i.unit})</option>
                   ))}
                 </select>
+                <span style={{ fontSize: '.75rem', color: 'var(--muted)' }}>
+                  Só aparecem ingredientes com a mesma unidade ({merge.source.unit}). Se o outro duplicado estiver com
+                  outra unidade, corrija a unidade dele em Editar antes de mesclar.
+                </span>
               </div>
             )}
 
