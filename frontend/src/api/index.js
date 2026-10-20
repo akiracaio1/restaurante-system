@@ -36,6 +36,7 @@ export const ingredientesAPI = {
   criar:     (data)     => api.post('/ingredientes/', data),
   atualizar: (id, data) => api.put(`/ingredientes/${id}`, data),
   excluir:   (id)       => api.delete(`/ingredientes/${id}`),
+  mesclar:   (targetId, data) => api.post(`/ingredientes/${targetId}/mesclar`, data),
 }
 
 export const receitasAPI = {
