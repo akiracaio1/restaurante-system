@@ -67,6 +67,36 @@ async def ordered_tables(conn: asyncpg.Connection) -> list[str]:
     return ordered
 
 
+def _q(name: str) -> str:
+    return '"' + name.replace('"', '""') + '"'
+
+
+async def copy_table(conn: asyncpg.Connection, table: str, path: Path, columns: list[str]) -> list[str]:
+    """Carrega o CSV na tabela e devolve as colunas ignoradas por não existirem no destino."""
+    dest = {
+        r["column_name"]
+        for r in await conn.fetch(
+            "SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = $1", table
+        )
+    }
+    skipped = [c for c in columns if c not in dest]
+    if not skipped:
+        with open(path, "rb") as f:
+            await conn.copy_to_table(table, source=f, columns=columns, format="csv", header=True)
+        return []
+    # O destino não tem todas as colunas do backup (ex.: coluna antiga que o app não usa mais).
+    # Passa por uma tabela temporária para o Postgres interpretar o CSV (vazio x nulo) e copia só o que existe.
+    await conn.execute(f"CREATE TEMP TABLE _restore_tmp (LIKE {_q(table)}) ON COMMIT DROP")
+    for c in skipped:
+        await conn.execute(f"ALTER TABLE _restore_tmp ADD COLUMN {_q(c)} text")
+    with open(path, "rb") as f:
+        await conn.copy_to_table("_restore_tmp", source=f, columns=columns, format="csv", header=True)
+    keep = ", ".join(_q(c) for c in columns if c in dest)
+    await conn.execute(f"INSERT INTO {_q(table)} ({keep}) SELECT {keep} FROM _restore_tmp")
+    await conn.execute("DROP TABLE _restore_tmp")
+    return skipped
+
+
 async def backup(out_root: str) -> None:
     conn = await connect()
     out = Path(out_root) / f"restaurante-{datetime.now():%Y%m%d-%H%M%S}"
@@ -110,6 +140,7 @@ async def restore(folder: str, force: bool) -> None:
         filled = {t: await conn.fetchval(f'SELECT count(*) FROM "{t}"') for t in manifest["tables"]}
         if any(filled.values()) and not force:
             sys.exit(f"Destino já tem dados ({ {t: n for t, n in filled.items() if n} }). Use --force para sobrescrever.")
+        ignored: dict[str, list[str]] = {}
         async with conn.transaction():
             if force:
                 names = ", ".join(f'"{t}"' for t in manifest["tables"])
@@ -120,8 +151,9 @@ async def restore(folder: str, force: bool) -> None:
                     columns = next(csv.reader(f))
                 if manifest["tables"][table]["rows"] == 0:
                     continue
-                with open(path, "rb") as f:
-                    await conn.copy_to_table(table, source=f, columns=columns, format="csv", header=True)
+                skipped = await copy_table(conn, table, path, columns)
+                if skipped:
+                    ignored[table] = skipped
             for table in manifest["tables"]:
                 seq = await conn.fetchval("SELECT pg_get_serial_sequence($1, 'id')", f'"{table}"')
                 if seq:
@@ -136,6 +168,8 @@ async def restore(folder: str, force: bool) -> None:
     finally:
         await conn.close()
     print(f"Restauração OK: {sum(m['rows'] for m in manifest['tables'].values())} linhas em {len(manifest['tables'])} tabelas")
+    for table, cols in ignored.items():
+        print(f"  aviso: colunas do backup que não existem no destino foram ignoradas: {table}.{', '.join(cols)}")
 
 
 def main() -> None:
