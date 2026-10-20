@@ -1,0 +1,21 @@
+name: keep-alive
+
+# Mantém o backend (plano gratuito do Render dorme após 15 min parado) e o banco
+# (Supabase gratuito pausa após 7 dias sem uso) acordados.
+# Só roda depois de definir a variável do repositório KEEPALIVE_URL
+# (Settings > Secrets and variables > Actions > Variables), ex.: https://restaurante-system-api.onrender.com
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    if: ${{ vars.KEEPALIVE_URL != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Acordar backend e banco
+        env:
+          URL: ${{ vars.KEEPALIVE_URL }}
+        run: curl --fail --silent --show-error --max-time 90 --retry 2 --retry-delay 15 "$URL/api/saude/banco"

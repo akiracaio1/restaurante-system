@@ -73,6 +73,16 @@ A interface sobe em **http://localhost:5173**
 
 ---
 
+## Hospedagem
+
+| Parte | Onde | Observação |
+|---|---|---|
+| Frontend (React/Vite) | Vercel | o endereço do backend fica fixo em `frontend/src/api/index.js` |
+| Backend (FastAPI) | Render (plano gratuito), definido em `render.yaml` | variáveis `DATABASE_URL` e `JWT_SECRET_KEY` configuradas no painel do Render |
+| Banco (Postgres) | Supabase (plano gratuito) | pausa após 7 dias sem uso |
+
+O plano gratuito do Render dorme após 15 min parado e o Supabase pausa após 7 dias sem uso. O workflow `.github/workflows/keep-alive.yml` chama `/api/saude/banco` a cada 5 minutos para evitar os dois; ele só roda depois de definir a variável do repositório `KEEPALIVE_URL` (Settings > Secrets and variables > Actions > Variables) com o endereço do backend.
+
 ## Perfis de acesso
 
 | Perfil | Acessa |

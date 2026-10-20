@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: restaurante-system-api
+    runtime: python
+    plan: free
+    region: virginia
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/saude
+    autoDeploy: true
+    envVars:
+      # versão testada; as dependências fixadas não suportam as mais novas
+      - key: PYTHON_VERSION
+        value: 3.12.10
+      # valores secretos: preenchidos no painel do Render, nunca neste arquivo
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET_KEY
+        sync: false

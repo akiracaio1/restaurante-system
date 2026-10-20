@@ -9,6 +9,8 @@ from conftest import CANARIES, FINANCIAL_KEY, all_keys, asyncpg_dsn
 # Única superfície que o perfil Operação pode usar. Qualquer outra rota deve dar 403.
 ALLOWED_FOR_OPERACAO = {
     ("GET", "/"),
+    ("GET", "/api/saude"),
+    ("GET", "/api/saude/banco"),
     ("POST", "/api/auth/login"),
     ("POST", "/api/auth/register"),
     ("GET", "/api/auth/me"),

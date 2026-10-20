@@ -1,7 +1,7 @@
 import json
 import logging
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
@@ -190,6 +190,23 @@ app.include_router(channels_router.router, prefix="/api/canais", tags=["Canais d
 app.include_router(categories_router.router, prefix="/api/categorias", tags=["Categorias"])
 app.include_router(suppliers_router.router, prefix="/api/fornecedores", tags=["Fornecedores"])
 app.include_router(users_router.router, prefix="/api/usuarios", tags=["Usuários"])
+
+
+@app.get("/api/saude")
+def health():
+    # Sem tocar no banco: é o que a hospedagem usa para saber se o app subiu.
+    return {"status": "ok"}
+
+
+@app.get("/api/saude/banco")
+async def health_db():
+    # Consulta o banco: usado pelo aviso automático que mantém app e banco acordados.
+    try:
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+    except Exception:
+        raise HTTPException(503, "Banco de dados indisponível")
+    return {"status": "ok", "banco": "ok"}
 
 
 @app.get("/")
